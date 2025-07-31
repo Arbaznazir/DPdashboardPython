@@ -1,0 +1,9 @@
+# Ignore all files in these directories
+loaded_files_log/*
+seat_prices/*
+seat_wise_prices/*
+
+# But keep the directories themselves
+!loaded_files_log/
+!seat_prices/
+!seat_wise_prices/
