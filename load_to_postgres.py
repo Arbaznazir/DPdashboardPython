@@ -98,10 +98,7 @@ def drop_table_if_exists(conn, table_name):
 
 def ensure_tables_exist_once(conn):
     """Ensure both required tables exist with only expected columns plus our three timestamp columns"""
-    # Drop tables first to ensure clean schema during development
-    drop_table_if_exists(conn, "seat_prices_raw")
-    drop_table_if_exists(conn, "seat_wise_prices_raw")
-    
+
     # Expected columns for each table type (these are the ONLY columns we want to keep from CSVs)
     seat_prices_expected_cols = [
         "expected_occupancy", "actual_occupancy", "demand_index", "time_step_to_check", 
@@ -373,15 +370,13 @@ def main():
     conn = get_connection()
     print("🔌 Connected to database successfully")
     
-    # Drop existing tables for a clean deduped schema
-    drop_existing_tables(conn)
 
     # Read log of already loaded files
     already_loaded = read_log()
     print(f"📋 Found {len(already_loaded)} already loaded files in log")
     
     # Ensure both tables exist once at the beginning
-    print("🛠️ Creating tables with proper schema...")
+    print("🛠️ Ensuring tables with proper schema...")
     ensure_tables_exist_once(conn)
 
     # Load new files from each directory
