@@ -1,7 +1,7 @@
 import dash
-from dash import dcc, html
+from dash import dcc, html, callback, Input, Output, State
 import dash_bootstrap_components as dbc
-from db_utils import get_schedule_ids, get_operators, get_seat_types, get_hours_before_departure, get_date_of_journey
+from db_utils import get_schedule_ids, get_operators, get_seat_types, get_hours_before_departure, get_date_of_journey, get_operator_id_by_schedule_id, get_operator_name_by_id, get_seat_types_by_schedule_id
 
 def create_schedule_id_slicer():
     """Create a dropdown slicer for schedule IDs"""
@@ -28,12 +28,21 @@ def create_operator_slicer():
             options=[{'label': str(op), 'value': op} for op in operators],
             placeholder='Select Operator',
             clearable=True,
-            className='mb-4'
-        )
+            className='mb-4',
+            disabled=True  # Initially disabled, will be enabled if no schedule ID is selected
+        ),
+        # Display area for operator name
+        html.Div([
+            html.Label('Operator Name:', className='fw-bold me-2', style={'display': 'inline-block'}),
+            html.Span(id='operator-name-display', className='text-primary')
+        ], className='mb-3'),
+        # Hidden div to store operator name
+        html.Div(id='operator-name-container', style={'display': 'none'})
     ])
 
 def create_seat_type_slicer():
     """Create a dropdown slicer for seat types"""
+    # Initially get all seat types, will be filtered via callback when schedule_id is selected
     seat_types = get_seat_types()
     
     return html.Div([
@@ -107,3 +116,60 @@ def create_slicers_panel():
         ]),
         className='mb-4'
     )
+
+
+# Callback to update operator dropdown when schedule ID is selected
+@callback(
+    [
+        Output('operator-dropdown', 'value'),
+        Output('operator-dropdown', 'disabled'),
+        Output('operator-name-container', 'children'),
+        Output('operator-name-display', 'children')
+    ],
+    [Input('schedule-id-dropdown', 'value')]
+)
+def update_operator_by_schedule_id(schedule_id):
+    """Update operator dropdown based on selected schedule ID"""
+    if not schedule_id:
+        # If no schedule ID is selected, enable the operator dropdown for manual selection
+        return None, False, None, ''
+    
+    # Get the operator_id for the selected schedule_id
+    operator_id = get_operator_id_by_schedule_id(schedule_id)
+    
+    if operator_id is None:
+        # If no operator_id found, enable the dropdown for manual selection
+        return None, False, None, ''
+    
+    # Get the operator name based on operator_id
+    operator_name = get_operator_name_by_id(operator_id)
+    
+    # Store the operator name in the hidden div
+    operator_name_div = html.Div(operator_name)
+    
+    # Return the operator_id as the value, disable the dropdown, store the operator name, and display it
+    return operator_id, True, operator_name_div, operator_name
+
+
+# Callback to update seat type dropdown when schedule ID is selected
+@callback(
+    Output('seat-type-dropdown', 'options'),
+    [Input('schedule-id-dropdown', 'value')]
+)
+def update_seat_types_by_schedule_id(schedule_id):
+    """Update seat type dropdown options based on selected schedule ID"""
+    if not schedule_id:
+        # If no schedule ID is selected, show all seat types
+        seat_types = get_seat_types()
+    else:
+        # Get seat types specific to the selected schedule_id
+        seat_types = get_seat_types_by_schedule_id(schedule_id)
+        
+        # If no seat types found for this schedule, fall back to all seat types
+        if not seat_types:
+            seat_types = get_seat_types()
+    
+    # Format the options for the dropdown
+    options = [{'label': str(st), 'value': st} for st in seat_types]
+    
+    return options

@@ -88,6 +88,29 @@ def get_seat_types():
         return df["seat_type"].tolist()
     return []
 
+def get_seat_types_by_schedule_id(schedule_id):
+    """Get unique seat types for a specific schedule_id from seat_wise_prices_raw table"""
+    if not schedule_id:
+        return []
+        
+    query = """
+    SELECT DISTINCT "seat_type" 
+    FROM seat_wise_prices_raw
+    WHERE "schedule_id" = %(schedule_id)s
+    ORDER BY "seat_type"
+    """
+    
+    params = {'schedule_id': schedule_id}
+    
+    try:
+        df = execute_query(query, params)
+        if df is not None and not df.empty:
+            return df["seat_type"].tolist()
+    except Exception as e:
+        print(f"Error getting seat types by schedule_id: {e}")
+    
+    return []
+
 def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Get filtered data based on selected filters"""
     where_clauses = ["1=1"]  # Default where clause that's always true
@@ -340,6 +363,75 @@ def get_schedule_ids_by_date(date_of_journey=None):
         print(f"Error getting schedule IDs by date: {e}")
     
     return []
+
+def get_operator_name_by_id(operator_id):
+    """Get operator name based on operator_id
+    
+    Implements the SWITCH logic:
+    OperatorName = 
+    SWITCH(
+        seat_prices[operator_id],
+        191, "Pullman San Andress",
+        296, "Pullman Bus TS",
+        "Other"  -- Default
+    )
+    """
+    # Ensure we're comparing the correct data types
+    # Convert to integer or string for comparison
+    try:
+        # Try to convert to int first
+        operator_id_int = int(operator_id)
+        
+        # Now do the comparison with integers
+        if operator_id_int == 191:
+            return "Pullman San Andress"
+        elif operator_id_int == 296:
+            return "Pullman Bus TS"
+        else:
+            return "Other"
+    except (TypeError, ValueError):
+        # If conversion fails, try string comparison
+        operator_id_str = str(operator_id)
+        
+        if operator_id_str == "191":
+            return "Pullman San Andress"
+        elif operator_id_str == "296":
+            return "Pullman Bus TS"
+        else:
+            return "Other"
+
+def get_operator_id_by_schedule_id(schedule_id):
+    """Get operator_id for a specific schedule_id"""
+    print(f"DEBUG: get_operator_id_by_schedule_id called with schedule_id = {schedule_id}")
+    
+    if not schedule_id:
+        print("DEBUG: schedule_id is None or empty")
+        return None
+        
+    query = """
+    SELECT DISTINCT "operator_id" 
+    FROM seat_prices_raw
+    WHERE "schedule_id" = %(schedule_id)s
+    LIMIT 1
+    """
+    
+    params = {'schedule_id': schedule_id}
+    print(f"DEBUG: Executing query with params: {params}")
+    
+    try:
+        df = execute_query(query, params)
+        print(f"DEBUG: Query result: {df}")
+        
+        if df is not None and not df.empty:
+            operator_id = df['operator_id'].iloc[0]
+            print(f"DEBUG: Found operator_id = {operator_id}, type = {type(operator_id)}")
+            return operator_id
+        else:
+            print("DEBUG: No operator_id found for this schedule_id")
+    except Exception as e:
+        print(f"Error getting operator_id by schedule_id: {e}")
+    
+    return None
 
 def get_date_of_journey(schedule_id=None, hours_before_departure=None):
     """Get date of journey data from dateofjourney view

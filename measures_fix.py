@@ -28,10 +28,9 @@ def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_befor
             'avg_expected_occupancy': 0
         }
     
-    # Convert columns to numeric and datetime
+    # Convert columns to numeric
     df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
     df['price'] = pd.to_numeric(df['price'], errors='coerce')
-    df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
     df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce')
     df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce')
     

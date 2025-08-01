@@ -4,7 +4,7 @@ from dash import dcc
 import dash_bootstrap_components as dbc
 from dash import html
 import pandas as pd
-from measures import get_price_trend_data, get_occupancy_data, get_seat_wise_analysis
+from measures import get_price_trend_data, get_price_delta_data, get_occupancy_data, get_seat_wise_analysis
 
 def create_price_trend_chart(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Create a price trend chart comparing actual fare vs model price"""
