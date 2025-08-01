@@ -117,10 +117,33 @@ def get_seat_wise_analysis(schedule_id=None, hours_before_departure=None, date_o
     df = get_seat_wise_data(schedule_id, hours_before_departure, date_of_journey)
     
     if df is None or df.empty:
-        return pd.DataFrame()
+        # Return an empty DataFrame with all required columns
+        return pd.DataFrame({
+            'actual_fare': [],
+            'final_price': [],
+            'sales_percentage': [],
+            'seat_type': [],
+            'seat_number': [],
+            'delta': []
+        })
+    
+    # Make sure required columns exist
+    required_columns = ['actual_fare', 'sales_percentage', 'seat_type', 'seat_number']
+    for col in required_columns:
+        if col not in df.columns:
+            df[col] = 0 if col != 'seat_type' and col != 'seat_number' else 'Unknown'
+    
+    # Add final_price column for the scatter chart
+    df['final_price'] = df['actual_fare']
+    
+    # Add delta column if it doesn't exist
+    if 'delta' not in df.columns:
+        df['delta'] = 0
     
     # Convert columns to numeric
-    df['price'] = pd.to_numeric(df['price'], errors='coerce')
+    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
+    df['final_price'] = pd.to_numeric(df['final_price'], errors='coerce')
     df['sales_percentage'] = pd.to_numeric(df['sales_percentage'], errors='coerce')
+    df['delta'] = pd.to_numeric(df['delta'], errors='coerce')
     
     return df

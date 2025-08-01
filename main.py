@@ -141,48 +141,85 @@ def update_schedule_id_slicer(date_of_journey):
         Input("schedule-id-dropdown", "value"),
         Input("hours-before-departure-dropdown", "value"),
         Input("date-of-journey-dropdown", "value"),
-        Input("operator-dropdown", "value"),
-        Input("seat-type-dropdown", "value")
+        Input("operator-dropdown", "value")
     ]
 )
-def update_dashboard(schedule_id, hours_before_departure, date_of_journey, operator_id, seat_type):
-    """Update dashboard components based on selected filters"""
+def update_dashboard(schedule_id, hours_before_departure, date_of_journey, operator_id):
+    """Update dashboard components based on selected filters - seat type filter removed as requested"""
+    # Set seat_type to None to show all seat types
+    seat_type = None
     
-    # Get KPI row
-    kpi_row = create_kpi_row(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    # Initialize default components in case of errors
+    default_message = html.Div([html.P("Select filters to view data")])
+    data_json = None
     
-    # Get charts
-    price_trend_chart = create_price_trend_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    price_delta_chart = create_price_delta_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    occupancy_chart = create_occupancy_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    seat_scatter_chart = create_seat_scatter_chart(schedule_id, hours_before_departure, date_of_journey)
+    try:
+        # Get KPI row
+        print(f"Creating KPI row with: schedule_id={schedule_id}, operator_id={operator_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
+        kpi_row = create_kpi_row(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    except Exception as e:
+        print(f"Error creating KPI row: {str(e)}")
+        kpi_row = html.Div([html.P(f"Error loading KPIs: {str(e)}")])
     
-    # Get data for table
-    df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    try:
+        # Get price trend chart
+        price_trend_chart = create_price_trend_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    except Exception as e:
+        print(f"Error creating price trend chart: {str(e)}")
+        price_trend_chart = default_message
     
-    if df is not None and not df.empty:
-        # Store data for sharing between callbacks
-        data_json = df.to_json(date_format='iso', orient='split')
+    try:
+        # Get price delta chart
+        price_delta_chart = create_price_delta_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    except Exception as e:
+        print(f"Error creating price delta chart: {str(e)}")
+        price_delta_chart = default_message
+    
+    try:
+        # Get occupancy chart
+        occupancy_chart = create_occupancy_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    except Exception as e:
+        print(f"Error creating occupancy chart: {str(e)}")
+        occupancy_chart = default_message
+    
+    try:
+        # Get seat scatter chart
+        seat_scatter_chart = create_seat_scatter_chart(schedule_id, hours_before_departure, date_of_journey)
+    except Exception as e:
+        print(f"Error creating seat scatter chart: {str(e)}")
+        seat_scatter_chart = default_message
+    
+    try:
+        # Get data for table
+        df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
         
-        # Create data table
-        data_table = dash_table.DataTable(
-            id='data-table',
-            columns=[{"name": i, "id": i} for i in df.columns],
-            data=df.to_dict('records'),
-            page_size=10,
-            style_table={'overflowX': 'auto'},
-            style_cell={
-                'textAlign': 'left',
-                'minWidth': '100px', 'width': '150px', 'maxWidth': '200px',
-                'overflow': 'hidden',
-                'textOverflow': 'ellipsis',
-            },
-            sort_action='native',
-            filter_action='native',
-        )
-    else:
+        if df is not None and not df.empty:
+            # Store data for sharing between callbacks
+            data_json = df.to_json(date_format='iso', orient='split')
+            
+            # Create data table
+            data_table = dash_table.DataTable(
+                id='data-table',
+                columns=[{"name": i, "id": i} for i in df.columns],
+                data=df.to_dict('records'),
+                page_size=10,
+                style_table={'overflowX': 'auto'},
+                style_cell={
+                    'textAlign': 'left',
+                    'minWidth': '100px', 'width': '150px', 'maxWidth': '200px',
+                    'overflow': 'hidden',
+                    'textOverflow': 'ellipsis',
+                },
+                sort_action='native',
+                filter_action='native',
+            )
+        else:
+            data_json = None
+            data_table = html.P("No data available for the selected filters.")
+    except Exception as e:
+        print(f"Error creating data table: {str(e)}")
+        data_table = html.P(f"Error loading data: {str(e)}")
         data_json = None
-        data_table = html.P("No data available for the selected filters.")
     
     return kpi_row, price_trend_chart, price_delta_chart, occupancy_chart, seat_scatter_chart, data_table, data_json
 

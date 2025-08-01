@@ -111,7 +111,7 @@ def create_slicers_panel():
             create_schedule_id_slicer(),       # Schedule ID options will depend on selected Date of Journey
             create_hours_before_departure_slicer(),  # Initially hidden, will be shown when schedule_id is selected
             create_operator_slicer(),
-            create_seat_type_slicer(),
+            # Removed seat type filter as requested
             create_date_range_slicer()
         ]),
         className='mb-4'
