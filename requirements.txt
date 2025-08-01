@@ -1,0 +1,6 @@
+dash==2.14.0
+dash-bootstrap-components==1.5.0
+plotly==5.18.0
+pandas==2.1.1
+psycopg2==2.9.9
+numpy==1.26.0
