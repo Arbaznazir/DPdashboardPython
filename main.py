@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 
 # Import custom modules
-from db_utils import get_filtered_data, get_seat_wise_data
+from db_utils import get_filtered_data, get_seat_wise_data, get_seat_wise_prices
 from slicers import create_slicers_panel
 from kpis import create_kpi_row
 from graphs import (
@@ -14,6 +14,7 @@ from graphs import (
     create_occupancy_chart,
     create_seat_scatter_chart
 )
+from seat_slider import create_seat_price_slider, create_seat_details_card
 
 # Initialize Dash app with Bootstrap theme
 app = dash.Dash(
@@ -67,6 +68,18 @@ app.layout = dbc.Container([
             html.Div(id="seat-scatter-container", className="mb-4")
         ], width=6),
     ]),
+    
+    # Seat Price Slider row
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader(html.H5("Seat-wise Pricing")),
+                dbc.CardBody([
+                    html.Div(id="seat-price-slider-container")
+                ])
+            ])
+        ], width=12)
+    ], className="mb-4"),
     
     # Data table
     dbc.Row([
@@ -222,6 +235,78 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
         data_json = None
     
     return kpi_row, price_trend_chart, price_delta_chart, occupancy_chart, seat_scatter_chart, data_table, data_json
+
+# Callback to update seat price slider based on selected schedule ID
+@app.callback(
+    Output("seat-price-slider-container", "children"),
+    [Input("schedule-id-dropdown", "value"),
+     Input("hours-before-departure-dropdown", "value")]
+)
+def update_seat_price_slider(schedule_id, hours_before_departure):
+    """Update seat price slider based on selected schedule ID and hour before departure"""
+    if not schedule_id:
+        return html.Div([
+            html.P("Select a schedule ID to view seat-wise pricing data", className="text-muted text-center")
+        ])
+    
+    try:
+        # Get seat-wise pricing data for the selected schedule ID and hour before departure
+        df = get_seat_wise_prices(schedule_id, hours_before_departure)
+        
+        if df is not None and not df.empty:
+            # Create the seat price slider component
+            return create_seat_price_slider(df)
+        else:
+            return html.Div([
+                html.P(f"No seat-wise pricing data available for schedule ID: {schedule_id} and hour before departure: {hours_before_departure}", 
+                       className="text-muted text-center")
+            ])
+    except Exception as e:
+        print(f"Error creating seat price slider: {str(e)}")
+        return html.Div([
+            html.P(f"Error loading seat-wise pricing data: {str(e)}", className="text-danger text-center")
+        ])
+
+# Callback to update seat details card based on selected seat
+@app.callback(
+    Output("seat-details", "children"),
+    [Input("seat-selector", "value"),
+     Input("schedule-id-dropdown", "value")]
+)
+def update_seat_details(selected_seat, schedule_id):
+    """Update seat details card based on selected seat"""
+    if not selected_seat or not schedule_id:
+        return html.Div()
+    
+    try:
+        # Get seat-wise pricing data for the selected schedule ID
+        df = get_seat_wise_prices(schedule_id)
+        
+        if df is not None and not df.empty:
+            # Filter data for the selected seat
+            seat_data = df[df['seat_number'].astype(str) == str(selected_seat)]
+            
+            if not seat_data.empty:
+                # Create a dictionary with seat details
+                seat_details = {
+                    'seat_number': selected_seat,
+                    'actual_fare': seat_data['actual_fare'].iloc[0],
+                    'final_price': seat_data['final_price'].iloc[0]
+                }
+                
+                # Create the seat details card
+                return create_seat_details_card(seat_details)
+            else:
+                return html.Div([
+                    html.P(f"No data available for seat {selected_seat}", className="text-muted")
+                ])
+        else:
+            return html.Div()
+    except Exception as e:
+        print(f"Error creating seat details card: {str(e)}")
+        return html.Div([
+            html.P(f"Error loading seat details: {str(e)}", className="text-danger")
+        ])
 
 # Run the app
 if __name__ == '__main__':

@@ -111,6 +111,119 @@ def get_seat_types_by_schedule_id(schedule_id):
     
     return []
 
+def get_operator_id_by_schedule_id(schedule_id):
+    """Get operator_id for a specific schedule_id"""
+    if not schedule_id:
+        return None
+    
+    # Convert schedule_id to string to ensure consistency
+    schedule_id = str(schedule_id)
+    
+    try:
+        query = """
+        SELECT DISTINCT "operator_id"
+        FROM seat_prices_raw
+        WHERE "schedule_id" = %(schedule_id)s
+        LIMIT 1
+        """
+        
+        params = {'schedule_id': schedule_id}
+        df = execute_query(query, params)
+        
+        if df is not None and not df.empty and 'operator_id' in df.columns:
+            operator_id = df['operator_id'].iloc[0]
+            return operator_id
+        else:
+            return None
+    except Exception as e:
+        print(f"Error getting operator_id for schedule_id {schedule_id}: {e}")
+        return None
+
+def get_seat_wise_prices(schedule_id, hours_before_departure=None):
+    """Get seat-wise pricing data for a specific schedule_id and hours_before_departure
+    
+    This function joins seat_prices_raw and seat_wise_prices_raw tables to get the correct data
+    based on TimeAndDateStamp for the specified hours_before_departure.
+    """
+    if not schedule_id:
+        return None
+    
+    # Convert schedule_id to string to ensure consistency
+    schedule_id = str(schedule_id)
+    
+    try:
+        # Build the query based on whether hours_before_departure is provided
+        if hours_before_departure is not None:
+            # First, get the TimeAndDateStamp from seat_prices_raw for the given schedule_id and hours_before_departure
+            print(f"Getting TimeAndDateStamp for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}")
+            
+            timestamp_query = """
+            SELECT "TimeAndDateStamp"
+            FROM seat_prices_raw
+            WHERE "schedule_id" = %(schedule_id)s AND "hours_before_departure" = %(hours_before_departure)s
+            ORDER BY "TimeAndDateStamp" DESC
+            LIMIT 1
+            """
+            
+            timestamp_params = {
+                'schedule_id': schedule_id,
+                'hours_before_departure': hours_before_departure
+            }
+            
+            timestamp_df = execute_query(timestamp_query, timestamp_params)
+            
+            if timestamp_df is None or timestamp_df.empty:
+                print(f"No TimeAndDateStamp found for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}")
+                return None
+            
+            timestamp = timestamp_df['TimeAndDateStamp'].iloc[0]
+            print(f"Found TimeAndDateStamp: {timestamp}")
+            
+            # Now get the seat-wise prices for this TimeAndDateStamp
+            query = """
+            SELECT DISTINCT ON ("seat_number") "seat_number", "actual_fare", "final_price"
+            FROM seat_wise_prices_raw
+            WHERE "schedule_id" = %(schedule_id)s AND "TimeAndDateStamp" = %(timestamp)s
+            ORDER BY "seat_number" ASC
+            """
+            
+            params = {
+                'schedule_id': schedule_id,
+                'timestamp': timestamp
+            }
+        else:
+            # If no hours_before_departure specified, get the latest data
+            query = """
+            WITH latest_snapshot AS (
+                SELECT "TimeAndDateStamp"
+                FROM seat_wise_prices_raw
+                WHERE "schedule_id" = %(schedule_id)s
+                ORDER BY "TimeAndDateStamp" DESC
+                LIMIT 1
+            )
+            SELECT DISTINCT ON ("seat_number") "seat_number", "actual_fare", "final_price"
+            FROM seat_wise_prices_raw
+            WHERE "schedule_id" = %(schedule_id)s AND "TimeAndDateStamp" = (SELECT "TimeAndDateStamp" FROM latest_snapshot)
+            ORDER BY "seat_number" ASC
+            """
+            
+            params = {'schedule_id': schedule_id}
+        
+        df = execute_query(query, params)
+        
+        if df is not None and not df.empty:
+            # Convert price columns to numeric
+            df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
+            df['final_price'] = pd.to_numeric(df['final_price'], errors='coerce')
+            
+            print(f"Found {len(df)} seats for schedule_id {schedule_id}")
+            return df
+        else:
+            print(f"No seat-wise pricing data found for schedule_id {schedule_id}")
+            return None
+    except Exception as e:
+        print(f"Error getting seat-wise prices for schedule_id {schedule_id}: {e}")
+        return None
 
 def get_actual_price(schedule_id, seat_type, hours_before_departure):
     """
