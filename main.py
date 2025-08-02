@@ -44,6 +44,39 @@ app.index_string = '''
                 background-color: #1e1e2f;
                 color: #ffffff;
             }
+            /* Responsive styles */
+            @media (max-width: 768px) {
+                .dashboard-title {
+                    font-size: 1.8rem !important;
+                }
+                .dashboard-subtitle {
+                    font-size: 0.9rem !important;
+                }
+                .mobile-stack {
+                    flex-direction: column !important;
+                }
+                .mobile-full-width {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    flex: 0 0 100% !important;
+                    margin-bottom: 10px !important;
+                }
+                .mobile-center {
+                    justify-content: center !important;
+                    text-align: center !important;
+                }
+                .mobile-scroll {
+                    overflow-x: auto !important;
+                }
+                .mobile-button {
+                    width: 100% !important;
+                    margin: 5px 0 !important;
+                }
+                .mobile-chart-container {
+                    height: 300px !important;
+                    min-height: 300px !important;
+                }
+            }
             .dashboard-header {
                 background: linear-gradient(87deg, #5e72e4 0, #825ee4 100%);
                 padding: 20px 0;
@@ -200,22 +233,22 @@ app.layout = dbc.Container([
     
     dbc.Row([
         dbc.Col([
-            html.Div(id="occupancy-container", className="mb-4")
-        ], width=12)
+            html.Div(id="occupancy-container", className="mb-4 mobile-scroll")
+        ], xs=12, sm=12, md=12, lg=12)
     ]),
     
     # Seat-wise Price Sum Chart row
     dbc.Row([
         dbc.Col([
-            html.Div(id="seat-wise-price-sum-container", className="mb-4")
-        ], width=12)
+            html.Div(id="seat-wise-price-sum-container", className="mb-4 mobile-scroll")
+        ], xs=12, sm=12, md=12, lg=12)
     ]),
     
     # Seat Map Visualization row
     dbc.Row([
         dbc.Col([
-            html.Div(id="seat-map-container")
-        ], width=12)
+            html.Div(id="seat-map-container", className="mobile-scroll")
+        ], xs=12, sm=12, md=12, lg=12)
     ], className="mb-4"),
     
     # Toggle buttons for showing/hiding sections
@@ -226,7 +259,7 @@ app.layout = dbc.Container([
                     [html.I(className="fas fa-table mr-2"), "Show Seat-wise Pricing Table"],
                     id="toggle-seat-pricing-table",
                     color="primary",
-                    className="mx-3 mb-3",
+                    className="mx-3 mb-3 mobile-button",
                     style={
                         "boxShadow": "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
                         "borderRadius": "8px",
@@ -241,7 +274,7 @@ app.layout = dbc.Container([
                     [html.I(className="fas fa-database mr-2"), "Show Detailed Data"],
                     id="toggle-detailed-data",
                     color="info",
-                    className="mx-3 mb-3",
+                    className="mx-3 mb-3 mobile-button",
                     style={
                         "boxShadow": "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
                         "borderRadius": "8px",
@@ -252,7 +285,7 @@ app.layout = dbc.Container([
                         "textTransform": "uppercase"
                     }
                 )
-            ], style={"display": "flex", "justifyContent": "center", "gap": "20px"})
+            ], style={"display": "flex", "justifyContent": "center", "gap": "20px", "flexWrap": "wrap"})
         ], width=12)
     ], className="mb-4 mt-3"),
     

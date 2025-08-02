@@ -189,7 +189,7 @@ def create_date_of_journey_slicer():
     ], id='date-of-journey-container', className='filter-section')
 
 def create_slicers_panel():
-    """Create a panel with all slicers in a single row"""
+    """Create a panel with all slicers in a single row on desktop, stacked on mobile"""
     return dbc.Card([
         dbc.CardHeader([
             html.H4("Dashboard Filters", className="d-flex align-items-center mb-0"),
@@ -216,7 +216,7 @@ def create_slicers_panel():
                             }
                         )
                     ], className='d-flex align-items-center')
-                ], width=3, className="mb-0"),
+                ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
                 
                 # Schedule ID
                 dbc.Col([
@@ -236,7 +236,7 @@ def create_slicers_panel():
                             }
                         )
                     ], className='d-flex align-items-center')
-                ], width=3, className="mb-0"),
+                ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
                 
                 # Hours Before Departure
                 dbc.Col([
@@ -257,7 +257,7 @@ def create_slicers_panel():
                             }
                         )
                     ], className='d-flex align-items-center')
-                ], id='hours-before-departure-container', style={'display': 'none'}, width=3, className="mb-0"),
+                ], id='hours-before-departure-container', style={'display': 'none'}, xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
                 
                 # Search
                 dbc.Col([
@@ -282,8 +282,8 @@ def create_slicers_panel():
                             style={'border-radius': '8px'}
                         )
                     ], className='d-flex align-items-center')
-                ], width=3, className="mb-0"),
-            ]),
+                ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
+            ], className="mobile-stack"),
             
             # Route Info Card (Operator, Origin, Destination)
             dbc.Row([

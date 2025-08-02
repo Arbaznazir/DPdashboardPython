@@ -66,7 +66,7 @@ def create_kpi_card(title, value, subtitle=None, color="primary", icon=None, tex
     )
 
 def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
-    """Create a row of KPI cards"""
+    """Create a row of KPI cards that stack on mobile"""
     kpi_data = get_kpi_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
     
     # We'll keep these for reference but they won't be the main KPIs
@@ -214,15 +214,15 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 
                 # Format price difference with color based on value
                 try:
-                    # Model price should be higher than actual price for optimal pricing
+                    # Actual price should be lower than model price for optimal business outcome
                     # So positive delta (actual > model) is bad, negative delta (model > actual) is good
                     if price_diff > 0:
                         current_price_diff = f"${price_diff:,.2f}"
-                        price_diff_color = "#f5365c"  # Bright red for positive delta
+                        price_diff_color = "#f5365c"  # Bright red for positive delta (actual > model)
                     elif price_diff < 0:
-                        # Remove negative sign as requested - delta is always a gain
+                        # Remove negative sign as requested - delta is always absolute
                         current_price_diff = f"${abs(price_diff):,.2f}"
-                        price_diff_color = "#2dce89"  # Bright green for negative delta
+                        price_diff_color = "#2dce89"  # Bright green for negative delta (model > actual)
                     else:
                         current_price_diff = f"${price_diff:,.2f}"
                 except Exception as e:
@@ -255,7 +255,7 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
             )
             
             # Determine card color based on price difference
-            price_diff_card_color = "success" if price_diff < 0 else "danger" if price_diff > 0 else "light"
+            price_diff_card_color = "danger" if price_diff > 0 else "success" if price_diff < 0 else "light"
             
             price_diff_card = create_kpi_card(
                 "Price Difference",
@@ -315,9 +315,9 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 total_price_diff = f"${float(total_prices['price_difference']):,.2f}"
                 # Determine color based on which price is higher
                 if total_prices['total_actual_price'] > total_prices['total_model_price']:
-                    price_diff_color = "danger"  # Red when actual > model
+                    price_diff_color = "danger"  # Red when actual > model (negative for business)
                 else:
-                    price_diff_color = "success"  # Green when model > actual
+                    price_diff_color = "success"  # Green when model > actual (positive for business)
             
             # Create total price KPI cards
             total_actual_price_card = create_kpi_card(
