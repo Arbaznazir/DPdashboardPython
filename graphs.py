@@ -104,35 +104,47 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
     """Create a chart showing actual vs expected occupancy, with separate charts for each seat type"""
     # Only proceed if we have a schedule_id
     if schedule_id is None:
-        return dcc.Graph(
-            figure=go.Figure().add_annotation(
-                text="Please select a Schedule ID",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=18, color="#5e72e4")
-            ).update_layout(
-                paper_bgcolor='#27293d',
-                plot_bgcolor='#27293d',
-                font=dict(color="white")
+        return html.Div([
+            # Section heading
+            html.H4("Occupancy Analysis", className="text-white mb-4"),
+            
+            # Placeholder message
+            dcc.Graph(
+                figure=go.Figure().add_annotation(
+                    text="Please select a Schedule ID",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.5, showarrow=False,
+                    font=dict(size=18, color="#5e72e4")
+                ).update_layout(
+                    paper_bgcolor='#27293d',
+                    plot_bgcolor='#27293d',
+                    font=dict(color="white")
+                )
             )
-        )
+        ])
     
     # Get occupancy data for all hours and seat types
     df = get_occupancy_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
     
     if df is None or df.empty:
-        return dcc.Graph(
-            figure=go.Figure().add_annotation(
-                text="No occupancy data available for this schedule",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=18, color="#5e72e4")
-            ).update_layout(
-                paper_bgcolor='#27293d',
-                plot_bgcolor='#27293d',
-                font=dict(color="white")
+        return html.Div([
+            # Section heading
+            html.H4("Occupancy Analysis", className="text-white mb-4"),
+            
+            # Placeholder message
+            dcc.Graph(
+                figure=go.Figure().add_annotation(
+                    text="No occupancy data available for this schedule",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.5, showarrow=False,
+                    font=dict(size=18, color="#5e72e4")
+                ).update_layout(
+                    paper_bgcolor='#27293d',
+                    plot_bgcolor='#27293d',
+                    font=dict(color="white")
+                )
             )
-        )
+        ])
     
     # Convert hours_before_departure to numeric for proper sorting
     df['hours_before_departure'] = pd.to_numeric(df['hours_before_departure'], errors='coerce')
@@ -172,6 +184,15 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
         )
     )
     
+    # Create a container with heading
+    container = html.Div([
+        # Section heading
+        html.H4("Occupancy Analysis", className="text-white mb-4"),
+        
+        # Container for charts
+        html.Div(id="occupancy-charts-container")
+    ])
+    
     # If there's only one seat type, create a single chart
     if len(seat_types) == 1:
         # Filter data for this seat type
@@ -201,30 +222,20 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
         
         # Update layout
         fig.update_layout(
-            title=f'Occupancy Trend: Actual vs Expected - {seat_types[0]}',
+            title=f"Occupancy Trend for {seat_types[0]}",
             **common_layout
         )
         
-        # Ensure x-axis is properly formatted
-        fig.update_xaxes(
-            type='category',  # Use category type for discrete values
-            categoryorder='array',  # Order by the array we provide
-            categoryarray=sorted(seat_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
-        )
-        
-        return dbc.Card([
-            dbc.CardHeader([
-                html.H5("Occupancy Analysis", className="mb-0 text-white"),
-                html.Span(seat_types[0], className="badge bg-primary ms-2")
-            ], className="d-flex align-items-center"),
-            dbc.CardBody([
-                dcc.Graph(figure=fig)
-            ])
-        ], className="mb-4 shadow")
+        # Add the chart to the container - full width for single seat type
+        container.children[1].children = dcc.Graph(figure=fig)
     
-    # If there are multiple seat types, create a chart for each seat type
+    # If there are multiple seat types, create a chart for each
     else:
         charts = []
+        
+        # Define colors for different seat types
+        actual_colors = ['#1d8cf8', '#00f2c3', '#fd5d93', '#ff9f43']
+        expected_colors = ['#3358f4', '#46c37b', '#ec250d', '#f5a623']
         
         for i, st in enumerate(seat_types):
             # Filter data for this seat type
@@ -233,9 +244,8 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
             # Create figure
             fig = go.Figure()
             
-            # Alternate colors for different seat types
-            colors = ['#1d8cf8', '#00f2c3', '#fd5d93', '#ff9f43']
-            color_idx = i % len(colors)
+            # Use different colors for different seat types
+            color_idx = i % len(actual_colors)
             
             # Add traces for actual and expected occupancy
             fig.add_trace(go.Scatter(
@@ -243,12 +253,9 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
                 y=seat_df['actual_occupancy'],
                 mode='lines+markers',
                 name='Actual Occupancy',
-                line=dict(color=colors[color_idx], width=3, shape='spline', smoothing=1.3),
-                marker=dict(size=8, color=colors[color_idx], line=dict(width=2, color='#ffffff'))
+                line=dict(color=actual_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff'))
             ))
-            
-            # Use a lighter shade for expected occupancy
-            expected_colors = ['#3358f4', '#46c37b', '#ec250d', '#f5a623']
             
             fig.add_trace(go.Scatter(
                 x=seat_df['hours_before_departure'],
@@ -261,7 +268,7 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
             
             # Update layout
             fig.update_layout(
-                title=f'Occupancy Trend: Actual vs Expected',
+                title=f'Occupancy Trend for {st}',
                 **common_layout
             )
             
@@ -272,20 +279,25 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
                 categoryarray=sorted(seat_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
             )
             
+            # Add the chart to the list
             charts.append(
-                dbc.Card([
-                    dbc.CardHeader([
-                        html.H5("Occupancy Analysis", className="mb-0 text-white"),
-                        html.Span(st, className="badge bg-primary ms-2")
-                    ], className="d-flex align-items-center"),
-                    dbc.CardBody([
-                        dcc.Graph(figure=fig)
-                    ])
-                ], className="mb-4 shadow")
+                dbc.Col(
+                    dcc.Graph(figure=fig),
+                    width=6,  # Two charts per row
+                    className="mb-4"
+                )
             )
         
-        # Return a div containing all charts
-        return html.Div(charts)
+        # Add the charts to the container in a scrollable row
+        container.children[1].children = html.Div(
+            dbc.Row(charts),
+            style={
+                'overflowX': 'auto',  # Enable horizontal scrolling
+                'paddingBottom': '15px'  # Space for scrollbar
+            }
+        )
+    
+    return container
 
 def create_seat_scatter_chart(schedule_id=None, hours_before_departure=None, date_of_journey=None):
     """Create a scatter plot showing seat pricing vs sales percentage"""
@@ -340,6 +352,10 @@ def create_seat_wise_price_sum_chart(schedule_id):
     """
     if not schedule_id:
         return html.Div([
+            # Section heading
+            html.H4("Price Sum Analysis", className="text-white mb-4"),
+            
+            # Placeholder message
             html.Div([
                 html.I(className="fas fa-chart-line fa-3x text-info mb-3"),
                 html.H5("Select a schedule ID to view seat-wise price sum chart", className="text-white")
@@ -352,6 +368,10 @@ def create_seat_wise_price_sum_chart(schedule_id):
         
         if df.empty:
             return html.Div([
+                # Section heading
+                html.H4("Price Sum Analysis", className="text-white mb-4"),
+                
+                # Placeholder message
                 html.Div([
                     html.I(className="fas fa-exclamation-triangle fa-3x text-warning mb-3"),
                     html.H5(f"No seat-wise price sum data available for schedule ID: {schedule_id}", 
@@ -394,11 +414,62 @@ def create_seat_wise_price_sum_chart(schedule_id):
             )
         )
         
+        # Create a container with heading
+        container = html.Div([
+            # Section heading
+            html.H4("Price Sum Analysis", className="text-white mb-4"),
+            
+            # Container for charts
+            html.Div(id="price-sum-charts-container")
+        ])
+        
         # Create a container for the charts
         charts = []
         
-        # Create a chart for each seat type
-        for i, seat_type in enumerate(seat_types):
+        # Enhanced color palette for better visual distinction
+        # Vibrant colors for actual price lines
+        actual_colors = [
+            '#4facfe',  # Bright blue
+            '#00f2c3',  # Teal
+            '#f868e6',  # Magenta
+            '#ffcb57',  # Gold
+            '#43e97b',  # Green
+            '#a166ff'   # Purple
+        ]
+        
+        # Subtle fill colors for actual price areas
+        actual_fill_colors = [
+            'rgba(79, 172, 254, 0.1)',  # Blue fill
+            'rgba(0, 242, 195, 0.1)',   # Teal fill
+            'rgba(248, 104, 230, 0.1)', # Magenta fill
+            'rgba(255, 203, 87, 0.1)',  # Gold fill
+            'rgba(67, 233, 123, 0.1)',  # Green fill
+            'rgba(161, 102, 255, 0.1)'  # Purple fill
+        ]
+        
+        # Complementary colors for model price lines
+        model_colors = [
+            '#ff5e62',  # Coral red
+            '#ff9f43',  # Orange
+            '#5e60ce',  # Indigo
+            '#0072ff',  # Royal blue
+            '#fd5d93',  # Pink
+            '#17c0eb'   # Sky blue
+        ]
+        
+        # Subtle fill colors for model price areas
+        model_fill_colors = [
+            'rgba(255, 94, 98, 0.1)',   # Coral fill
+            'rgba(255, 159, 67, 0.1)',  # Orange fill
+            'rgba(94, 96, 206, 0.1)',   # Indigo fill
+            'rgba(0, 114, 255, 0.1)',   # Royal blue fill
+            'rgba(253, 93, 147, 0.1)',  # Pink fill
+            'rgba(23, 192, 235, 0.1)'   # Sky blue fill
+        ]
+        
+        # If there's only one seat type, create a single chart
+        if len(seat_types) == 1:
+            seat_type = seat_types[0]
             seat_type_df = df[df['seat_type'] == seat_type]
             
             # Sort data by hours_before_departure in descending order (5h, 4h, 3h, etc.)
@@ -407,59 +478,16 @@ def create_seat_wise_price_sum_chart(schedule_id):
             # Create figure
             fig = go.Figure()
             
-            # Enhanced color palette for better visual distinction
-            # Vibrant colors for actual price lines
-            actual_colors = [
-                '#4facfe',  # Bright blue
-                '#00f2c3',  # Teal
-                '#f868e6',  # Magenta
-                '#ffcb57',  # Gold
-                '#43e97b',  # Green
-                '#a166ff'   # Purple
-            ]
-            
-            # Subtle fill colors for actual price areas
-            actual_fill_colors = [
-                'rgba(79, 172, 254, 0.1)',  # Blue fill
-                'rgba(0, 242, 195, 0.1)',   # Teal fill
-                'rgba(248, 104, 230, 0.1)', # Magenta fill
-                'rgba(255, 203, 87, 0.1)',  # Gold fill
-                'rgba(67, 233, 123, 0.1)',  # Green fill
-                'rgba(161, 102, 255, 0.1)'  # Purple fill
-            ]
-            
-            # Complementary colors for model price lines
-            model_colors = [
-                '#ff5e62',  # Coral red
-                '#ff9f43',  # Orange
-                '#5e60ce',  # Indigo
-                '#0072ff',  # Royal blue
-                '#fd5d93',  # Pink
-                '#17c0eb'   # Sky blue
-            ]
-            
-            # Subtle fill colors for model price areas
-            model_fill_colors = [
-                'rgba(255, 94, 98, 0.1)',   # Coral fill
-                'rgba(255, 159, 67, 0.1)',  # Orange fill
-                'rgba(94, 96, 206, 0.1)',   # Indigo fill
-                'rgba(0, 114, 255, 0.1)',   # Royal blue fill
-                'rgba(253, 93, 147, 0.1)',  # Pink fill
-                'rgba(23, 192, 235, 0.1)'   # Sky blue fill
-            ]
-            
-            color_idx = i % len(actual_colors)
-            
             # Add trace for actual price sum
             fig.add_trace(go.Scatter(
                 x=seat_type_df['hours_before_departure'],
                 y=seat_type_df['total_actual_price'],
                 mode='lines+markers',
                 name='Actual Price Sum',
-                line=dict(color=actual_colors[color_idx], width=3, shape='spline', smoothing=1.3),
-                marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff')),
+                line=dict(color=actual_colors[0], width=3, shape='spline', smoothing=1.3),
+                marker=dict(size=8, color=actual_colors[0], line=dict(width=2, color='#ffffff')),
                 fill='tozeroy',
-                fillcolor=actual_fill_colors[color_idx]
+                fillcolor=actual_fill_colors[0]
             ))
             
             # Add trace for model price sum
@@ -467,16 +495,16 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 x=seat_type_df['hours_before_departure'],
                 y=seat_type_df['total_model_price'],
                 name="Model Price Sum",
-                line=dict(color=model_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                line=dict(color=model_colors[0], width=3, shape='spline', smoothing=1.3),
                 mode='lines+markers',
-                marker=dict(size=8, color=model_colors[color_idx], line=dict(width=2, color=model_colors[color_idx])),  # Fix model price marker styling
+                marker=dict(size=8, color=model_colors[0], line=dict(width=2, color=model_colors[0])),
                 fill='tozeroy',
-                fillcolor=model_fill_colors[color_idx]
+                fillcolor=model_fill_colors[0]
             ))
             
             # Update layout
             fig.update_layout(
-                title=f"Seat-wise Price Sum Analysis",
+                title=f"Price Sum Analysis for {seat_type}",
                 **common_layout
             )
             
@@ -487,20 +515,79 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 categoryarray=sorted(seat_type_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
             )
             
-            # Add the chart to the container
-            charts.append(
-                dbc.Card([
-                    dbc.CardHeader([
-                        html.H5("Price Sum Analysis", className="mb-0 text-white"),
-                        html.Span(seat_type, className="badge bg-info ms-2")
-                    ], className="d-flex align-items-center"),
-                    dbc.CardBody([
-                        dcc.Graph(figure=fig)
-                    ])
-                ], className="mb-4 shadow")
+            # Add the chart to the container - full width for single seat type
+            container.children[1].children = dcc.Graph(figure=fig)
+        
+        # If there are multiple seat types, create a chart for each
+        else:
+            # Create a chart for each seat type
+            for i, seat_type in enumerate(seat_types):
+                seat_type_df = df[df['seat_type'] == seat_type]
+                
+                # Sort data by hours_before_departure in descending order (5h, 4h, 3h, etc.)
+                seat_type_df = seat_type_df.sort_values('hours_before_departure', ascending=False)
+                
+                # Create figure
+                fig = go.Figure()
+                
+                color_idx = i % len(actual_colors)
+                
+                # Add trace for actual price sum
+                fig.add_trace(go.Scatter(
+                    x=seat_type_df['hours_before_departure'],
+                    y=seat_type_df['total_actual_price'],
+                    mode='lines+markers',
+                    name='Actual Price Sum',
+                    line=dict(color=actual_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                    marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff')),
+                    fill='tozeroy',
+                    fillcolor=actual_fill_colors[color_idx]
+                ))
+                
+                # Add trace for model price sum
+                fig.add_trace(go.Scatter(
+                    x=seat_type_df['hours_before_departure'],
+                    y=seat_type_df['total_model_price'],
+                    name="Model Price Sum",
+                    line=dict(color=model_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                    mode='lines+markers',
+                    marker=dict(size=8, color=model_colors[color_idx], line=dict(width=2, color=model_colors[color_idx])),
+                    fill='tozeroy',
+                    fillcolor=model_fill_colors[color_idx]
+                ))
+                
+                # Update layout
+                fig.update_layout(
+                    title=f"Price Sum Analysis for {seat_type}",
+                    **common_layout
+                )
+                
+                # Ensure x-axis is properly formatted
+                fig.update_xaxes(
+                    type='category',  # Use category type for discrete values
+                    categoryorder='array',  # Order by the array we provide
+                    categoryarray=sorted(seat_type_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
+                )
+                
+                # Add the chart to the list
+                charts.append(
+                    dbc.Col(
+                        dcc.Graph(figure=fig),
+                        width=6,  # Two charts per row
+                        className="mb-4"
+                    )
+                )
+            
+            # Add the charts to the container in a scrollable row
+            container.children[1].children = html.Div(
+                dbc.Row(charts),
+                style={
+                    'overflowX': 'auto',  # Enable horizontal scrolling
+                    'paddingBottom': '15px'  # Space for scrollbar
+                }
             )
         
-        return html.Div(charts)
+        return container
     except Exception as e:
         print(f"Error creating seat-wise price sum chart: {str(e)}")
         return html.Div([
