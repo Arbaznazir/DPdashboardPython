@@ -1,7 +1,7 @@
 import dash
 from dash import dcc, html, callback, Input, Output, State
 import dash_bootstrap_components as dbc
-from db_utils import get_schedule_ids, get_operators, get_seat_types, get_hours_before_departure, get_date_of_journey, get_operator_id_by_schedule_id, get_operator_name_by_id, get_seat_types_by_schedule_id
+from db_utils import get_schedule_ids, get_operators, get_seat_types, get_hours_before_departure, get_date_of_journey, get_operator_id_by_schedule_id, get_operator_name_by_id, get_seat_types_by_schedule_id, get_origin_destination_by_schedule_id
 
 def create_schedule_id_slicer():
     """Create a dropdown slicer for schedule IDs"""
@@ -31,10 +31,18 @@ def create_operator_slicer():
             className='mb-4',
             disabled=True  # Initially disabled, will be enabled if no schedule ID is selected
         ),
-        # Display area for operator name
+        # Display area for operator name, origin and destination
         html.Div([
             html.Label('Operator Name:', className='fw-bold me-2', style={'display': 'inline-block'}),
             html.Span(id='operator-name-display', className='text-primary')
+        ], className='mb-2'),
+        html.Div([
+            html.Label('Origin:', className='fw-bold me-2', style={'display': 'inline-block'}),
+            html.Span(id='origin-display', className='text-primary')
+        ], className='mb-2'),
+        html.Div([
+            html.Label('Destination:', className='fw-bold me-2', style={'display': 'inline-block'}),
+            html.Span(id='destination-display', className='text-primary')
         ], className='mb-3'),
         # Hidden div to store operator name
         html.Div(id='operator-name-container', style={'display': 'none'})

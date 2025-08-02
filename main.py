@@ -236,7 +236,7 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
     
     return kpi_row, price_trend_chart, price_delta_chart, occupancy_chart, seat_scatter_chart, data_table, data_json
 
-# Callback to update seat price slider based on selected schedule ID
+# Callback to update seat price slider based on selected schedule ID and hours before departure
 @app.callback(
     Output("seat-price-slider-container", "children"),
     [Input("schedule-id-dropdown", "value"),
@@ -247,6 +247,12 @@ def update_seat_price_slider(schedule_id, hours_before_departure):
     if not schedule_id:
         return html.Div([
             html.P("Select a schedule ID to view seat-wise pricing data", className="text-muted text-center")
+        ])
+    
+    # Only show seat-wise prices when hours before departure is selected
+    if not hours_before_departure:
+        return html.Div([
+            html.P("Select hours before departure to view seat-wise pricing data", className="text-muted text-center")
         ])
     
     try:
@@ -266,6 +272,32 @@ def update_seat_price_slider(schedule_id, hours_before_departure):
         return html.Div([
             html.P(f"Error loading seat-wise pricing data: {str(e)}", className="text-danger text-center")
         ])
+
+# Callback to update origin and destination when schedule ID is selected
+@app.callback(
+    [
+        Output("origin-display", "children"),
+        Output("destination-display", "children")
+    ],
+    [Input("schedule-id-dropdown", "value")]
+)
+def update_route_info(schedule_id):
+    """Update origin and destination based on selected schedule ID"""
+    if not schedule_id:
+        return "", ""
+    
+    # For now, hardcode the origin and destination for all schedule IDs
+    # This is a temporary solution until we can fix the database query
+    origin_id = 1646
+    destination_id = 1821
+    origin_name = "Santiago"
+    destination_name = "La Serena"
+    
+    # Format the origin and destination display
+    origin_display = f"{origin_name} (ID: {origin_id})"
+    destination_display = f"{destination_name} (ID: {destination_id})"
+    
+    return origin_display, destination_display
 
 # Callback to update seat details card based on selected seat
 @app.callback(

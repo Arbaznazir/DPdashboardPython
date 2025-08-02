@@ -139,6 +139,45 @@ def get_operator_id_by_schedule_id(schedule_id):
         print(f"Error getting operator_id for schedule_id {schedule_id}: {e}")
         return None
 
+
+def get_origin_destination_by_schedule_id(schedule_id):
+    """Get origin and destination information for a specific schedule_id"""
+    if not schedule_id:
+        return None, None, None, None
+    
+    # Convert schedule_id to string to ensure consistency
+    schedule_id = str(schedule_id)
+    
+    try:
+        query = """
+        SELECT DISTINCT "origin_id", "destination_id", "op_origin", "op_destination"
+        FROM seat_wise_prices_raw
+        WHERE "schedule_id" = %(schedule_id)s
+        LIMIT 1
+        """
+        
+        params = {'schedule_id': schedule_id}
+        df = execute_query(query, params)
+        
+        if df is not None and not df.empty:
+            origin_id = df['origin_id'].iloc[0] if 'origin_id' in df.columns else None
+            destination_id = df['destination_id'].iloc[0] if 'destination_id' in df.columns else None
+            op_origin = df['op_origin'].iloc[0] if 'op_origin' in df.columns else None
+            op_destination = df['op_destination'].iloc[0] if 'op_destination' in df.columns else None
+            
+            # Map origin_id to name
+            origin_name = "Santiago" if origin_id == 1646 else "Other"
+            
+            # Map destination_id to name
+            destination_name = "La Serena" if destination_id == 1821 else "Other"
+            
+            return origin_id, destination_id, origin_name, destination_name
+        else:
+            return None, None, None, None
+    except Exception as e:
+        print(f"Error getting origin/destination for schedule_id {schedule_id}: {e}")
+        return None, None, None, None
+
 def get_seat_wise_prices(schedule_id, hours_before_departure=None):
     """Get seat-wise pricing data for a specific schedule_id and hours_before_departure
     
@@ -538,6 +577,42 @@ def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_
     
     return df
 
+def get_origin_destination_by_schedule_id(schedule_id):
+    """Get origin and destination information for a schedule ID"""
+    if not schedule_id:
+        return None, None, None, None
+    
+    try:
+        # Convert schedule_id to string to avoid type mismatch issues
+        schedule_id_str = str(schedule_id)
+        
+        query = """
+        SELECT DISTINCT "origin_id", "destination_id" 
+        FROM seat_wise_prices_raw
+        WHERE "schedule_id" = %(schedule_id)s::text
+        LIMIT 1
+        """
+        
+        params = {'schedule_id': schedule_id_str}
+        df = execute_query(query, params)
+        
+        if df is not None and not df.empty:
+            origin_id = df['origin_id'].iloc[0] if 'origin_id' in df.columns else None
+            destination_id = df['destination_id'].iloc[0] if 'destination_id' in df.columns else None
+            
+            # Map origin_id and destination_id to names
+            # This is a simplified mapping - in a real application, you would query a locations table
+            origin_name = "Santiago" if origin_id == 1646 else "Other"
+            destination_name = "La Serena" if destination_id == 1821 else "Other"
+            
+            return origin_id, destination_id, origin_name, destination_name
+        else:
+            print(f"No origin/destination data found for schedule ID: {schedule_id}")
+            return None, None, "Unknown", "Unknown"
+    except Exception as e:
+        print(f"Error retrieving origin/destination for schedule ID {schedule_id}: {str(e)}")
+        return None, None, "Unknown", "Unknown"
+
 def get_seat_wise_data(schedule_id=None, hours_before_departure=None, date_of_journey=None):
     """Get seat-wise data based on selected filters"""
     where_clauses = []
@@ -553,8 +628,7 @@ def get_seat_wise_data(schedule_id=None, hours_before_departure=None, date_of_jo
     SELECT * FROM seat_wise_prices_raw
     WHERE {where_clause}
     ORDER BY "TimeAndDateStamp" DESC
-    """
-    
+    """    
     df = execute_query(query, params)
     
     # If hours_before_departure is specified, filter the data further
