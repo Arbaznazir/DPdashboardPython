@@ -218,7 +218,45 @@ app.layout = dbc.Container([
         ], width=12)
     ], className="mb-4"),
     
-    # Seat Price Slider row
+    # Toggle buttons for showing/hiding sections
+    dbc.Row([
+        dbc.Col([
+            html.Div([
+                dbc.Button(
+                    [html.I(className="fas fa-table mr-2"), "Show Seat-wise Pricing Table"],
+                    id="toggle-seat-pricing-table",
+                    color="primary",
+                    className="mx-3 mb-3",
+                    style={
+                        "boxShadow": "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
+                        "borderRadius": "8px",
+                        "padding": "12px 20px",
+                        "fontSize": "14px",
+                        "fontWeight": "600",
+                        "letterSpacing": "0.5px",
+                        "textTransform": "uppercase"
+                    }
+                ),
+                dbc.Button(
+                    [html.I(className="fas fa-database mr-2"), "Show Detailed Data"],
+                    id="toggle-detailed-data",
+                    color="info",
+                    className="mx-3 mb-3",
+                    style={
+                        "boxShadow": "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
+                        "borderRadius": "8px",
+                        "padding": "12px 20px",
+                        "fontSize": "14px",
+                        "fontWeight": "600",
+                        "letterSpacing": "0.5px",
+                        "textTransform": "uppercase"
+                    }
+                )
+            ], style={"display": "flex", "justifyContent": "center", "gap": "20px"})
+        ], width=12)
+    ], className="mb-4 mt-3"),
+    
+    # Seat Price Slider row (hidden by default)
     dbc.Row([
         dbc.Col([
             dbc.Card([
@@ -228,9 +266,9 @@ app.layout = dbc.Container([
                 ])
             ])
         ], width=12)
-    ], className="mb-4"),
+    ], className="mb-4", id="seat-pricing-table-container", style={"display": "none"}),
     
-    # Data table
+    # Data table (hidden by default)
     dbc.Row([
         dbc.Col([
             dbc.Card([
@@ -240,7 +278,7 @@ app.layout = dbc.Container([
                 ])
             ])
         ], width=12)
-    ]),
+    ], id="detailed-data-container", style={"display": "none"}),
     
     # Store component for sharing data between callbacks
     dcc.Store(id="filtered-data-store"),
@@ -514,6 +552,44 @@ def update_seat_details(selected_seat, schedule_id):
         return html.Div([
             html.P(f"Error loading seat details: {str(e)}", className="text-danger")
         ])
+
+# Callback to toggle seat-wise pricing table visibility
+@app.callback(
+    Output("seat-pricing-table-container", "style"),
+    Output("toggle-seat-pricing-table", "children"),
+    Input("toggle-seat-pricing-table", "n_clicks"),
+    State("seat-pricing-table-container", "style")
+)
+def toggle_seat_pricing_table(n_clicks, current_style):
+    if n_clicks is None:
+        # Initial load - keep hidden
+        return {"display": "none"}, [html.I(className="fas fa-table mr-2"), "Show Seat-wise Pricing Table"]
+    
+    if current_style.get("display") == "none":
+        # Show the table
+        return {"display": "block"}, [html.I(className="fas fa-table mr-2"), "Hide Seat-wise Pricing Table"]
+    else:
+        # Hide the table
+        return {"display": "none"}, [html.I(className="fas fa-table mr-2"), "Show Seat-wise Pricing Table"]
+
+# Callback to toggle detailed data visibility
+@app.callback(
+    Output("detailed-data-container", "style"),
+    Output("toggle-detailed-data", "children"),
+    Input("toggle-detailed-data", "n_clicks"),
+    State("detailed-data-container", "style")
+)
+def toggle_detailed_data(n_clicks, current_style):
+    if n_clicks is None:
+        # Initial load - keep hidden
+        return {"display": "none"}, [html.I(className="fas fa-database mr-2"), "Show Detailed Data"]
+    
+    if current_style.get("display") == "none":
+        # Show the data
+        return {"display": "block"}, [html.I(className="fas fa-database mr-2"), "Hide Detailed Data"]
+    else:
+        # Hide the data
+        return {"display": "none"}, [html.I(className="fas fa-database mr-2"), "Show Detailed Data"]
 
 # Run the app
 if __name__ == '__main__':
