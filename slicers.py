@@ -7,46 +7,65 @@ def create_schedule_id_slicer():
     """Create a dropdown slicer for schedule IDs"""
     # Initially no options, will be populated via callback when date_of_journey is selected
     return html.Div([
-        html.Label('Schedule ID', className='fw-bold mb-2'),
+        html.Label('Schedule ID', className='fw-bold mb-2 text-info'),
         dcc.Dropdown(
             id='schedule-id-dropdown',
             options=[],
             placeholder='Select Schedule ID',
             clearable=True,
-            className='mb-4'
+            className='mb-4 dark-dropdown',
+            style={
+                'border-radius': '8px',
+                'background-color': '#2c2c44',
+                'color': 'white'
+            }
         )
-    ])
+    ], className='filter-section')
 
 def create_operator_slicer():
     """Create a dropdown slicer for operators"""
     operators = get_operators()
     
     return html.Div([
-        html.Label('Operator', className='fw-bold mb-2'),
+        html.Label('Operator', className='fw-bold mb-2 text-info'),
         dcc.Dropdown(
             id='operator-dropdown',
             options=[{'label': str(op), 'value': op} for op in operators],
             placeholder='Select Operator',
             clearable=True,
-            className='mb-4',
-            disabled=True  # Initially disabled, will be enabled if no schedule ID is selected
+            className='mb-4 dark-dropdown',
+            disabled=True,  # Initially disabled, will be enabled if no schedule ID is selected
+            style={
+                'border-radius': '8px',
+                'background-color': '#2c2c44',
+                'color': 'white'
+            }
         ),
-        # Display area for operator name, origin and destination
-        html.Div([
-            html.Label('Operator Name:', className='fw-bold me-2', style={'display': 'inline-block'}),
-            html.Span(id='operator-name-display', className='text-primary')
-        ], className='mb-2'),
-        html.Div([
-            html.Label('Origin:', className='fw-bold me-2', style={'display': 'inline-block'}),
-            html.Span(id='origin-display', className='text-primary')
-        ], className='mb-2'),
-        html.Div([
-            html.Label('Destination:', className='fw-bold me-2', style={'display': 'inline-block'}),
-            html.Span(id='destination-display', className='text-primary')
-        ], className='mb-3'),
+        # Display area for operator name, origin and destination in a styled card
+        dbc.Card([
+            dbc.CardBody([
+                html.Div([
+                    html.Div([
+                        html.I(className="fas fa-building me-2 text-info"),
+                        html.Label('Operator:', className='fw-bold me-2'),
+                        html.Span(id='operator-name-display', className='text-light')
+                    ], className='mb-2 d-flex align-items-center'),
+                    html.Div([
+                        html.I(className="fas fa-plane-departure me-2 text-success"),
+                        html.Label('Origin:', className='fw-bold me-2'),
+                        html.Span(id='origin-display', className='text-light')
+                    ], className='mb-2 d-flex align-items-center'),
+                    html.Div([
+                        html.I(className="fas fa-plane-arrival me-2 text-danger"),
+                        html.Label('Destination:', className='fw-bold me-2'),
+                        html.Span(id='destination-display', className='text-light')
+                    ], className='mb-2 d-flex align-items-center')
+                ])
+            ])
+        ], className='mb-4 route-info-card'),
         # Hidden div to store operator name
         html.Div(id='operator-name-container', style={'display': 'none'})
-    ])
+    ], className='filter-section')
 
 def create_seat_type_slicer():
     """Create a dropdown slicer for seat types"""
@@ -80,15 +99,24 @@ def create_hours_before_departure_slicer(schedule_id=None):
     """Create a dropdown slicer for hours before departure"""
     # Initially no options, will be populated via callback when schedule_id is selected
     return html.Div([
-        html.Label('Hours Before Departure', className='fw-bold mb-2'),
-        dcc.Dropdown(
-            id='hours-before-departure-dropdown',
-            options=[],
-            placeholder='Select Hours Before Departure',
-            clearable=True,
-            className='mb-4'
-        )
-    ], id='hours-before-departure-container', style={'display': 'none'})
+        html.Label('Hours Before Departure', className='fw-bold mb-2 text-info'),
+        html.Div([
+            html.I(className="fas fa-clock me-2 text-warning"),
+            dcc.Dropdown(
+                id='hours-before-departure-dropdown',
+                options=[],
+                placeholder='Select Hours Before Departure',
+                clearable=True,
+                className='mb-4 dark-dropdown',
+                style={
+                    'border-radius': '8px',
+                    'background-color': '#2c2c44',
+                    'color': 'white',
+                    'width': '100%'
+                }
+            )
+        ], className='d-flex align-items-center')
+    ], id='hours-before-departure-container', style={'display': 'none'}, className='filter-section')
 
 def create_date_of_journey_slicer():
     """Create a dropdown slicer for date of journey"""
@@ -100,30 +128,43 @@ def create_date_of_journey_slicer():
     options = [{'label': date, 'value': date} for date in dates]
     
     return html.Div([
-        html.Label('Date of Journey', className='fw-bold mb-2'),
-        dcc.Dropdown(
-            id='date-of-journey-dropdown',
-            options=options,
-            placeholder='Select Date of Journey',
-            clearable=True,
-            className='mb-4'
-        )
-    ], id='date-of-journey-container')
+        html.Label('Date of Journey', className='fw-bold mb-2 text-info'),
+        html.Div([
+            html.I(className="fas fa-calendar-alt me-2 text-warning"),
+            dcc.Dropdown(
+                id='date-of-journey-dropdown',
+                options=options,
+                placeholder='Select Date of Journey',
+                clearable=True,
+                className='mb-4 dark-dropdown',
+                style={
+                    'border-radius': '8px',
+                    'background-color': '#2c2c44',
+                    'color': 'white',
+                    'width': '100%'
+                }
+            )
+        ], className='d-flex align-items-center')
+    ], id='date-of-journey-container', className='filter-section')
 
 def create_slicers_panel():
     """Create a panel with all slicers"""
-    return dbc.Card(
+    return dbc.Card([
+        dbc.CardHeader([
+            html.H4("Dashboard Filters", className="d-flex align-items-center mb-0"),
+            html.I(className="fas fa-filter ms-2 text-info")
+        ], className="d-flex align-items-center"),
         dbc.CardBody([
-            html.H4('Filters', className='card-title mb-4'),
-            create_date_of_journey_slicer(),  # Date of Journey is now the primary filter and always visible
-            create_schedule_id_slicer(),       # Schedule ID options will depend on selected Date of Journey
-            create_hours_before_departure_slicer(),  # Initially hidden, will be shown when schedule_id is selected
-            create_operator_slicer(),
-            # Removed seat type filter as requested
-            create_date_range_slicer()
-        ]),
-        className='mb-4'
-    )
+            dbc.Row([
+                dbc.Col(create_date_of_journey_slicer(), width=12, lg=6, className="mb-3"),
+                dbc.Col(create_schedule_id_slicer(), width=12, lg=6, className="mb-3"),
+            ]),
+            dbc.Row([
+                dbc.Col(create_operator_slicer(), width=12, lg=6, className="mb-3"),
+                dbc.Col(create_hours_before_departure_slicer(), width=12, lg=6, className="mb-3"),
+            ])
+        ])
+    ], className='mb-4 filter-panel shadow')
 
 
 # Callback to update operator dropdown when schedule ID is selected

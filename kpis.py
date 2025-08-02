@@ -7,28 +7,62 @@ from db_utils import get_actual_price, get_model_price, get_demand_index
 from price_utils import get_prices_by_schedule_and_hour
 
 def create_kpi_card(title, value, subtitle=None, color="primary", icon=None, text_color=None):
-    """Create a KPI card component"""
+    """Create a KPI card component with modern styling"""
     # Apply text color style if provided
-    value_style = {}
+    value_style = {'font-size': '1.8rem', 'font-weight': '700'}
     if text_color:
-        value_style = {'color': text_color}
+        value_style['color'] = text_color
+    
+    # Define gradient backgrounds based on color
+    gradient_map = {
+        "primary": "linear-gradient(45deg, #1d8cf8, #3358f4)",
+        "success": "linear-gradient(45deg, #00bf9a, #46c37b)",
+        "warning": "linear-gradient(45deg, #f5a623, #ff9f43)",
+        "danger": "linear-gradient(45deg, #fd5d93, #ec250d)",
+        "info": "linear-gradient(45deg, #11cdef, #1171ef)",
+        "light": "linear-gradient(45deg, #ebeff4, #ced4da)",
+        "dark": "linear-gradient(45deg, #212529, #343a40)",
+    }
+    
+    gradient_bg = gradient_map.get(color, gradient_map["primary"])
+    
+    icon_element = html.Div(
+        html.Div(
+            html.I(className=f"fas fa-{icon} fa-2x"),
+            className="icon-circle"
+        ),
+        className="icon-shape",
+        style={
+            'position': 'absolute',
+            'right': '15px',
+            'top': '15px',
+            'opacity': '0.4'
+        }
+    ) if icon else None
     
     card_content = [
+        icon_element,
         html.Div([
-            html.Div([
-                html.H6(title, className="text-muted mb-1"),
-                html.H4(value, className="mb-0", style=value_style)
-            ], className="col-9"),
-            html.Div([
-                html.I(className=f"fas fa-{icon} fa-2x text-{color}")
-            ], className="col-3 text-end") if icon else None
-        ], className="row"),
-        html.P(subtitle, className="text-muted mt-2 mb-0") if subtitle else None
+            html.H6(title, className="text-white mb-1 font-weight-bold", 
+                   style={'font-size': '0.9rem', 'text-transform': 'uppercase', 'letter-spacing': '0.5px'}),
+            html.H4(value, className="mb-0 text-white", style=value_style),
+            html.Hr(className="my-2", style={'background-color': 'rgba(255,255,255,0.3)', 'opacity': '0.3'}) if subtitle else None,
+            html.P(subtitle, className="text-white-50 mt-2 mb-0 small") if subtitle else None
+        ])
     ]
     
     return dbc.Card(
         dbc.CardBody(card_content),
-        className=f"border-start border-5 border-{color} shadow mb-4"
+        className="kpi-card shadow mb-4",
+        style={
+            'background': gradient_bg,
+            'border-radius': '10px',
+            'border': 'none',
+            'overflow': 'hidden',
+            'position': 'relative',
+            'transition': 'transform 0.3s ease',
+            'min-height': '140px'
+        }
     )
 
 def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):

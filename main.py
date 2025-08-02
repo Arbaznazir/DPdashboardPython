@@ -17,25 +17,143 @@ from graphs import (
 )
 from seat_slider import create_seat_price_slider, create_seat_details_card
 
-# Initialize Dash app with Bootstrap theme
+# Initialize Dash app with Bootstrap theme - using DARKLY for a modern dark theme
 app = dash.Dash(
     __name__,
     external_stylesheets=[
-        dbc.themes.BOOTSTRAP,
-        'https://use.fontawesome.com/releases/v5.15.4/css/all.css'
+        dbc.themes.DARKLY,  # Modern dark theme
+        'https://use.fontawesome.com/releases/v5.15.4/css/all.css',
+        'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap'  # Modern font
     ],
     suppress_callback_exceptions=True
 )
 
+# Custom CSS for better styling
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            body {
+                font-family: 'Poppins', sans-serif;
+                background-color: #1e1e2f;
+                color: #ffffff;
+            }
+            .dashboard-header {
+                background: linear-gradient(87deg, #5e72e4 0, #825ee4 100%);
+                padding: 20px 0;
+                border-radius: 10px;
+                box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14), 0 7px 10px -5px rgba(94, 114, 228, 0.4);
+                margin-bottom: 30px;
+            }
+            .dashboard-title {
+                font-weight: 700;
+                font-size: 2.5rem;
+                margin: 0;
+                color: white;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .dashboard-subtitle {
+                color: rgba(255, 255, 255, 0.8);
+                font-size: 1.1rem;
+                font-weight: 300;
+            }
+            .card {
+                border-radius: 10px;
+                box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14);
+                margin-bottom: 20px;
+                background-color: #27293d;
+                border: none;
+            }
+            .card-header {
+                background-color: rgba(0, 0, 0, 0.2);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                padding: 15px 20px;
+                border-radius: 10px 10px 0 0 !important;
+            }
+            .card-body {
+                padding: 20px;
+            }
+            .kpi-card {
+                background: linear-gradient(45deg, #1d8cf8, #3358f4);
+                color: white;
+                border-radius: 10px;
+                padding: 20px;
+                box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14);
+                transition: transform 0.3s;
+            }
+            .kpi-card:hover {
+                transform: translateY(-5px);
+            }
+            .nav-pills .nav-link.active {
+                background-color: #5e72e4;
+            }
+            .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+                background-color: #5e72e4 !important;
+                color: white !important;
+            }
+            .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+                background-color: #27293d !important;
+                color: white !important;
+            }
+            /* Dark dropdown styling */
+            .dark-dropdown .Select-control {
+                background-color: #2c2c44 !important;
+                border-color: #444 !important;
+            }
+            .dark-dropdown .Select-menu-outer {
+                background-color: #2c2c44 !important;
+                border: 1px solid #444 !important;
+            }
+            .dark-dropdown .Select-option {
+                background-color: #2c2c44 !important;
+                color: white !important;
+            }
+            .dark-dropdown .Select-option:hover {
+                background-color: #3a3a5a !important;
+            }
+            .dark-dropdown .Select-value-label {
+                color: white !important;
+            }
+            .dark-dropdown .Select-placeholder {
+                color: #aaa !important;
+            }
+            .dark-dropdown.is-focused:not(.is-open) > .Select-control {
+                border-color: #5e72e4 !important;
+                box-shadow: 0 0 0 3px rgba(94, 114, 228, 0.25) !important;
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+'''
+
 # App layout
 app.layout = dbc.Container([
-    # Header
+    # Header with gradient background
     dbc.Row([
         dbc.Col([
-            html.H1("Dynamic Pricing Dashboard", className="mb-2"),
-            html.P("Analyze seat pricing and occupancy data", className="text-muted")
+            html.Div([
+                html.H1("Dynamic Pricing Dashboard", className="dashboard-title"),
+                html.P("Analyze seat pricing and occupancy data", className="dashboard-subtitle"),
+                html.Div([
+                    html.I(className="fas fa-chart-line mr-2"),
+                    " Real-time analytics for optimal pricing decisions"
+                ], className="mt-2")
+            ], className="text-center dashboard-header")
         ], width=12)
-    ], className="mb-4 mt-4"),
+    ]),
     
     # Filters row
     dbc.Row([
@@ -188,21 +306,45 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
             # Store data for sharing between callbacks
             data_json = df.to_json(date_format='iso', orient='split')
             
-            # Create data table
+            # Create modern data table with dark theme styling - using only supported properties
             data_table = dash_table.DataTable(
                 id='data-table',
                 columns=[{"name": i, "id": i} for i in df.columns],
                 data=df.to_dict('records'),
                 page_size=10,
-                style_table={'overflowX': 'auto'},
+                style_table={
+                    'overflowX': 'auto',
+                    'backgroundColor': '#27293d',
+                    'border': '1px solid #444'
+                },
                 style_cell={
                     'textAlign': 'left',
-                    'minWidth': '100px', 'width': '150px', 'maxWidth': '200px',
+                    'minWidth': '100px', 
+                    'width': '150px', 
+                    'maxWidth': '200px',
                     'overflow': 'hidden',
                     'textOverflow': 'ellipsis',
+                    'backgroundColor': '#27293d',
+                    'color': 'white',
+                    'fontFamily': 'Poppins, sans-serif',
+                    'border': '1px solid #444'
                 },
+                style_header={
+                    'backgroundColor': '#1d8cf8',
+                    'color': 'white',
+                    'fontWeight': 'bold',
+                    'textAlign': 'center',
+                    'border': '1px solid #1d8cf8'
+                },
+                style_data_conditional=[
+                    {
+                        'if': {'row_index': 'odd'},
+                        'backgroundColor': '#2c2f43'
+                    }
+                ],
                 sort_action='native',
                 filter_action='native',
+                page_action='native'
             )
         else:
             data_json = None
