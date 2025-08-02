@@ -4,7 +4,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from measures import get_kpi_data
 from db_utils import get_actual_price, get_model_price, get_demand_index
-from price_utils import get_prices_by_schedule_and_hour
+from price_utils import get_prices_by_schedule_and_hour, get_total_seat_prices
 
 def create_kpi_card(title, value, subtitle=None, color="primary", icon=None, text_color=None):
     """Create a KPI card component with modern styling"""
@@ -293,6 +293,67 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
         )
         # Add the demand index card at the top, before any seat type cards
         price_kpi_cards.insert(0, dbc.Col(demand_index_card, width=3))
+        
+        # Add total price KPI cards for all seats at the selected hour
+        if schedule_id and hours_before_departure is not None:
+            # Get total prices for all seats
+            total_prices = get_total_seat_prices(schedule_id, hours_before_departure)
+            
+            # Format the total prices for display
+            total_actual_price = "N/A"
+            total_model_price = "N/A"
+            total_price_diff = "N/A"
+            price_diff_color = "light"
+            
+            if total_prices['total_actual_price'] is not None:
+                total_actual_price = f"${float(total_prices['total_actual_price']):,.2f}"
+                
+            if total_prices['total_model_price'] is not None:
+                total_model_price = f"${float(total_prices['total_model_price']):,.2f}"
+                
+            if total_prices['price_difference'] is not None:
+                total_price_diff = f"${float(total_prices['price_difference']):,.2f}"
+                # Determine color based on which price is higher
+                if total_prices['total_actual_price'] > total_prices['total_model_price']:
+                    price_diff_color = "danger"  # Red when actual > model
+                else:
+                    price_diff_color = "success"  # Green when model > actual
+            
+            # Create total price KPI cards
+            total_actual_price_card = create_kpi_card(
+                "Total Actual Price",
+                total_actual_price,
+                "Sum for All Seats",
+                "success",
+                "money-bill-wave"
+            )
+            
+            total_model_price_card = create_kpi_card(
+                "Total Model Price",
+                total_model_price,
+                "Sum for All Seats",
+                "info",
+                "calculator"
+            )
+            
+            total_price_diff_card = create_kpi_card(
+                "Total Price Difference",
+                total_price_diff,
+                "Sum for All Seats",
+                price_diff_color,
+                "exchange-alt"
+            )
+            
+            # Add a row for total price KPI cards
+            price_kpi_cards.append(html.Div(style={"height": "20px"}))
+            price_kpi_cards.append(html.H5("Total Prices for All Seats", className="text-center mt-4 mb-3"))
+            price_kpi_cards.append(
+                dbc.Row([
+                    dbc.Col(total_actual_price_card, width=4),
+                    dbc.Col(total_model_price_card, width=4),
+                    dbc.Col(total_price_diff_card, width=4)
+                ], className="mb-4")
+            )
     
     # If no seat types were found or no prices were available, show placeholder cards
     if not price_kpi_cards:
