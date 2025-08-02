@@ -16,6 +16,7 @@ from graphs import (
     create_seat_wise_price_sum_chart
 )
 from seat_slider import create_seat_price_slider, create_seat_details_card
+from seat_map import create_seat_map
 
 # Initialize Dash app with Bootstrap theme - using DARKLY for a modern dark theme
 app = dash.Dash(
@@ -210,11 +211,18 @@ app.layout = dbc.Container([
         ], width=12)
     ]),
     
+    # Seat Map Visualization row
+    dbc.Row([
+        dbc.Col([
+            html.Div(id="seat-map-container")
+        ], width=12)
+    ], className="mb-4"),
+    
     # Seat Price Slider row
     dbc.Row([
         dbc.Col([
             dbc.Card([
-                dbc.CardHeader(html.H5("Seat-wise Pricing")),
+                dbc.CardHeader(html.H5("Seat-wise Pricing Table")),
                 dbc.CardBody([
                     html.Div(id="seat-price-slider-container")
                 ])
@@ -398,40 +406,47 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
 
 # Callback to update seat price slider based on selected schedule ID and hours before departure
 @app.callback(
-    Output("seat-price-slider-container", "children"),
+    [Output("seat-price-slider-container", "children"),
+     Output("seat-map-container", "children")],
     [Input("schedule-id-dropdown", "value"),
      Input("hours-before-departure-dropdown", "value")]
 )
-def update_seat_price_slider(schedule_id, hours_before_departure):
-    """Update seat price slider based on selected schedule ID and hour before departure"""
+def update_seat_visualizations(schedule_id, hours_before_departure):
+    """Update seat price slider and seat map based on selected schedule ID and hour before departure"""
     if not schedule_id:
-        return html.Div([
+        empty_message = html.Div([
             html.P("Select a schedule ID to view seat-wise pricing data", className="text-muted text-center")
         ])
+        return empty_message, empty_message
     
     # Only show seat-wise prices when hours before departure is selected
     if not hours_before_departure:
-        return html.Div([
+        empty_message = html.Div([
             html.P("Select hours before departure to view seat-wise pricing data", className="text-muted text-center")
         ])
+        return empty_message, empty_message
     
     try:
         # Get seat-wise pricing data for the selected schedule ID and hour before departure
         df = get_seat_wise_prices(schedule_id, hours_before_departure)
         
         if df is not None and not df.empty:
-            # Create the seat price slider component
-            return create_seat_price_slider(df)
+            # Create the seat price slider and seat map components
+            seat_slider = create_seat_price_slider(df)
+            seat_map = create_seat_map(df)
+            return seat_slider, seat_map
         else:
-            return html.Div([
+            empty_message = html.Div([
                 html.P(f"No seat-wise pricing data available for schedule ID: {schedule_id} and hour before departure: {hours_before_departure}", 
                        className="text-muted text-center")
             ])
+            return empty_message, empty_message
     except Exception as e:
-        print(f"Error creating seat price slider: {str(e)}")
-        return html.Div([
+        print(f"Error creating seat visualizations: {str(e)}")
+        error_message = html.Div([
             html.P(f"Error loading seat-wise pricing data: {str(e)}", className="text-danger text-center")
         ])
+        return error_message, error_message
 
 # Callback to update origin and destination when schedule ID is selected
 @app.callback(
