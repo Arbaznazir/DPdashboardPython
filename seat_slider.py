@@ -30,19 +30,31 @@ def create_seat_price_slider(df):
     # Sort by seat number in ascending order (numerically)
     df = df.sort_values('seat_number', ascending=True)
     
+    # Calculate delta (actual_fare - final_price) before formatting
+    df['actual_numeric'] = pd.to_numeric(df['actual_fare'], errors='coerce')
+    df['final_numeric'] = pd.to_numeric(df['final_price'], errors='coerce')
+    df['price_delta'] = df['actual_numeric'] - df['final_numeric']
+    
     # Format prices with dollar sign and 2 decimal places
     df['actual_fare'] = df['actual_fare'].apply(lambda x: f"${x:.2f}")
     df['final_price'] = df['final_price'].apply(lambda x: f"${x:.2f}")
     
-    # Create a modern table with seat number, actual price and model price
+    # Format delta with dollar sign, 2 decimal places, and color coding
+    df['delta_formatted'] = df['price_delta'].apply(lambda x: f"${abs(x):.2f}")
+    
+    # Create color condition for delta values
+    df['delta_color'] = df['price_delta'].apply(lambda x: 'green' if x > 0 else 'red' if x < 0 else 'white')
+    
+    # Create a modern table with seat number, actual price, model price and delta
     table = dash_table.DataTable(
         id='seat-price-table',
         columns=[
             {"name": ["Seat Details", "Seat Number"], "id": "seat_number"},
             {"name": ["Price Information", "Actual Price"], "id": "actual_fare"},
-            {"name": ["Price Information", "Model Price"], "id": "final_price"}
+            {"name": ["Price Information", "Model Price"], "id": "final_price"},
+            {"name": ["Price Information", "Delta"], "id": "delta_formatted"}
         ],
-        data=df[['seat_number', 'actual_fare', 'final_price']].to_dict('records'),
+        data=df[['seat_number', 'actual_fare', 'final_price', 'delta_formatted', 'delta_color']].to_dict('records'),
         page_action='none',  # Show all rows without pagination
         style_table={
             'overflowX': 'auto', 
@@ -83,6 +95,14 @@ def create_seat_price_slider(df):
             {
                 'if': {'column_id': 'final_price'},
                 'color': '#fd5d93'
+            },
+            {
+                'if': {'column_id': 'delta_formatted', 'filter_query': '{price_delta} > 0'},
+                'color': '#00f2c3'  # Green for positive delta
+            },
+            {
+                'if': {'column_id': 'delta_formatted', 'filter_query': '{price_delta} < 0'},
+                'color': '#fd5d93'  # Red for negative delta
             }
         ],
         sort_action='native',
