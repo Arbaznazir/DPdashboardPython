@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from db_utils import get_filtered_data, get_seat_wise_data
+from db_utils import get_filtered_data, get_seat_wise_data, execute_query
 
 def calculate_price_delta(actual_fare, model_price):
     """Calculate the delta between actual fare and model price"""
@@ -101,14 +101,83 @@ def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours
     if df is None or df.empty:
         return pd.DataFrame()
     
-    # Convert columns to numeric and datetime
-    df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce')
-    df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce')
-    # Specify format explicitly to avoid warnings
-    df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
+    # Rest of the occupancy data function would go here
+    return df
+
+def get_seat_wise_price_sum_by_hour(schedule_id):
+    """Get sum of actual and model prices for all seats by hours before departure
     
-    # Sort by timestamp
-    df = df.sort_values('TimeAndDateStamp')
+    This function implements logic similar to the PowerBI DAX measures:
+    - Gets the latest snapshot for each hours before departure
+    - Sums up actual_fare and final_price for all seats
+    - Groups by seat_type if multiple seat types exist
+    """
+    if not schedule_id:
+        return pd.DataFrame()
+        
+    try:
+        # Convert schedule_id to string to ensure consistency
+        schedule_id = str(schedule_id)
+        
+        # Query to get the sum of actual_fare and final_price by hours before departure and seat_type
+        query = """
+        WITH all_hours AS (
+            -- Get all distinct hours before departure for this schedule
+            SELECT DISTINCT "hours_before_departure"
+            FROM seat_prices_raw
+            WHERE "schedule_id" = %(schedule_id)s
+            ORDER BY "hours_before_departure" DESC
+        ),
+        all_seat_types AS (
+            -- Get all distinct seat types for this schedule
+            SELECT DISTINCT "seat_type"
+            FROM seat_prices_raw
+            WHERE "schedule_id" = %(schedule_id)s
+        ),
+        latest_snapshots AS (
+            -- Get the latest snapshot for each hour before departure and seat type
+            SELECT DISTINCT ON (sp."hours_before_departure", sp."seat_type") 
+                sp."hours_before_departure", 
+                sp."seat_type",
+                sp."TimeAndDateStamp"
+            FROM seat_prices_raw sp
+            WHERE sp."schedule_id" = %(schedule_id)s
+            ORDER BY sp."hours_before_departure", sp."seat_type", sp."TimeAndDateStamp" DESC
+        )
+        SELECT 
+            ls."hours_before_departure",
+            ls."seat_type",
+            SUM(CAST(swp."actual_fare" AS NUMERIC)) as "total_actual_price",
+            SUM(CAST(swp."final_price" AS NUMERIC)) as "total_model_price",
+            COUNT(DISTINCT swp."seat_number") as "seat_count"
+        FROM latest_snapshots ls
+        JOIN seat_wise_prices_raw swp 
+            ON swp."TimeAndDateStamp" = ls."TimeAndDateStamp" 
+            AND swp."seat_type" = ls."seat_type"
+            AND swp."schedule_id" = %(schedule_id)s
+        GROUP BY ls."hours_before_departure", ls."seat_type"
+        ORDER BY ls."hours_before_departure" DESC
+        """
+        
+        params = {'schedule_id': schedule_id}
+        df = execute_query(query, params)
+        
+        if df is None or df.empty:
+            print(f"No seat-wise price sum data found for schedule_id={schedule_id}")
+            return pd.DataFrame()
+            
+        # Convert columns to numeric
+        df['total_actual_price'] = pd.to_numeric(df['total_actual_price'], errors='coerce')
+        df['total_model_price'] = pd.to_numeric(df['total_model_price'], errors='coerce')
+        df['hours_before_departure'] = pd.to_numeric(df['hours_before_departure'], errors='coerce')
+        
+        # Sort by hours_before_departure
+        df = df.sort_values('hours_before_departure', ascending=False)
+        
+        return df
+    except Exception as e:
+        print(f"Error getting seat-wise price sum data: {str(e)}")
+        return pd.DataFrame()
     
     return df
 

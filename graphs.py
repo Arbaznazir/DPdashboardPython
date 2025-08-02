@@ -4,7 +4,7 @@ from dash import dcc
 import dash_bootstrap_components as dbc
 from dash import html
 import pandas as pd
-from measures import get_price_trend_data, get_price_delta_data, get_occupancy_data, get_seat_wise_analysis
+from measures import get_price_trend_data, get_price_delta_data, get_occupancy_data, get_seat_wise_analysis, get_seat_wise_price_sum_by_hour
 
 def create_price_trend_chart(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Create a price trend chart comparing actual fare vs model price"""
@@ -201,3 +201,98 @@ def create_seat_scatter_chart(schedule_id=None, hours_before_departure=None, dat
         ],
         className="mb-4"
     )
+
+def create_seat_wise_price_sum_chart(schedule_id):
+    """Create a chart showing sum of actual and model prices for all seats by hours before departure
+    
+    If there are multiple seat types, create separate graphs for each type
+    """
+    if not schedule_id:
+        return html.Div([
+            html.P("Select a schedule ID to view seat-wise price sum chart", className="text-muted text-center")
+        ])
+    
+    try:
+        # Get data for the chart
+        df = get_seat_wise_price_sum_by_hour(schedule_id)
+        
+        if df.empty:
+            return html.Div([
+                html.P(f"No seat-wise price sum data available for schedule ID: {schedule_id}", 
+                       className="text-muted text-center")
+            ])
+        
+        # Check if there are multiple seat types
+        seat_types = df['seat_type'].unique()
+        
+        # Create a container for the charts
+        charts_container = html.Div([
+            html.H5(f"Seat-wise Price Sum by Hours Before Departure", className="text-center mb-3")
+        ])
+        
+        # Create a chart for each seat type
+        for seat_type in seat_types:
+            seat_type_df = df[df['seat_type'] == seat_type]
+            
+            fig = go.Figure()
+            
+            # Sort data by hours_before_departure in descending order (5h, 4h, 3h, etc.)
+            seat_type_df = seat_type_df.sort_values('hours_before_departure', ascending=False)
+            
+            # Add trace for actual price sum
+            fig.add_trace(go.Scatter(
+                x=seat_type_df['hours_before_departure'],
+                y=seat_type_df['total_actual_price'],
+                mode='lines+markers',
+                name='Actual Price Sum',
+                line=dict(color='#2E86C1', width=2),
+                marker=dict(size=8),
+                hovertemplate='%{x} hours before departure<br>Actual Price Sum: $%{y:.2f}<br>Seat Count: ' + 
+                              seat_type_df['seat_count'].astype(str) + '<extra></extra>'
+            ))
+            
+            # Add trace for model price sum
+            fig.add_trace(go.Scatter(
+                x=seat_type_df['hours_before_departure'],
+                y=seat_type_df['total_model_price'],
+                mode='lines+markers',
+                name='Model Price Sum',
+                line=dict(color='#F39C12', width=2, dash='dot'),
+                marker=dict(size=8),
+                hovertemplate='%{x} hours before departure<br>Model Price Sum: $%{y:.2f}<br>Seat Count: ' + 
+                              seat_type_df['seat_count'].astype(str) + '<extra></extra>'
+            ))
+            
+            # Update layout
+            fig.update_layout(
+                title=f'Seat Type: {seat_type} - Total Price Sum by Hours Before Departure',
+                xaxis_title='Hours Before Departure',
+                yaxis_title='Price Sum ($)',
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                margin=dict(l=40, r=40, t=60, b=40),
+                hovermode="x unified"
+            )
+            
+            # Add the chart to the container
+            charts_container.children.append(
+                dbc.Card(
+                    [
+                        dbc.CardHeader(html.H5(f"Total Price Sum - Seat Type: {seat_type}")),
+                        dbc.CardBody(dcc.Graph(figure=fig))
+                    ],
+                    className="mb-4"
+                )
+            )
+        
+        return charts_container
+    except Exception as e:
+        print(f"Error creating seat-wise price sum chart: {str(e)}")
+        return html.Div([
+            html.P(f"Error creating seat-wise price sum chart: {str(e)}", className="text-danger text-center")
+        ])

@@ -12,7 +12,8 @@ from graphs import (
     create_price_trend_chart, 
     create_price_delta_chart,
     create_occupancy_chart,
-    create_seat_scatter_chart
+    create_seat_scatter_chart,
+    create_seat_wise_price_sum_chart
 )
 from seat_slider import create_seat_price_slider, create_seat_details_card
 
@@ -50,15 +51,7 @@ app.layout = dbc.Container([
         ], width=12)
     ]),
     
-    # Charts row
-    dbc.Row([
-        dbc.Col([
-            html.Div(id="price-trend-container", className="mb-4")
-        ], width=6),
-        dbc.Col([
-            html.Div(id="price-delta-container", className="mb-4")
-        ], width=6),
-    ]),
+    # Charts row - Price Trend and Price Delta graphs removed as requested
     
     dbc.Row([
         dbc.Col([
@@ -67,6 +60,13 @@ app.layout = dbc.Container([
         dbc.Col([
             html.Div(id="seat-scatter-container", className="mb-4")
         ], width=6),
+    ]),
+    
+    # Seat-wise Price Sum Chart row
+    dbc.Row([
+        dbc.Col([
+            html.Div(id="seat-wise-price-sum-container", className="mb-4")
+        ], width=12)
     ]),
     
     # Seat Price Slider row
@@ -143,12 +143,11 @@ def update_schedule_id_slicer(date_of_journey):
 @app.callback(
     [
         Output("kpi-container", "children"),
-        Output("price-trend-container", "children"),
-        Output("price-delta-container", "children"),
         Output("occupancy-container", "children"),
         Output("seat-scatter-container", "children"),
         Output("data-table-container", "children"),
-        Output("filtered-data-store", "data")
+        Output("filtered-data-store", "data"),
+        Output("seat-wise-price-sum-container", "children")
     ],
     [
         Input("schedule-id-dropdown", "value"),
@@ -174,19 +173,7 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
         print(f"Error creating KPI row: {str(e)}")
         kpi_row = html.Div([html.P(f"Error loading KPIs: {str(e)}")])
     
-    try:
-        # Get price trend chart
-        price_trend_chart = create_price_trend_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    except Exception as e:
-        print(f"Error creating price trend chart: {str(e)}")
-        price_trend_chart = default_message
-    
-    try:
-        # Get price delta chart
-        price_delta_chart = create_price_delta_chart(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    except Exception as e:
-        print(f"Error creating price delta chart: {str(e)}")
-        price_delta_chart = default_message
+    # Price trend and price delta charts removed as requested
     
     try:
         # Get occupancy chart
@@ -231,10 +218,17 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
             data_table = html.P("No data available for the selected filters.")
     except Exception as e:
         print(f"Error creating data table: {str(e)}")
-        data_table = html.P(f"Error loading data: {str(e)}")
+        data_table = default_message
         data_json = None
     
-    return kpi_row, price_trend_chart, price_delta_chart, occupancy_chart, seat_scatter_chart, data_table, data_json
+    try:
+        # Get seat-wise price sum chart (only depends on schedule_id, not on hours_before_departure)
+        seat_wise_price_sum_chart = create_seat_wise_price_sum_chart(schedule_id)
+    except Exception as e:
+        print(f"Error creating seat-wise price sum chart: {str(e)}")
+        seat_wise_price_sum_chart = html.Div([html.P(f"Error loading seat-wise price sum chart: {str(e)}", className="text-danger text-center")])
+    
+    return kpi_row, occupancy_chart, seat_scatter_chart, data_table, data_json, seat_wise_price_sum_chart
 
 # Callback to update seat price slider based on selected schedule ID and hours before departure
 @app.callback(
