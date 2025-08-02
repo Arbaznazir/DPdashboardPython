@@ -217,11 +217,12 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                     # Model price should be higher than actual price for optimal pricing
                     # So positive delta (actual > model) is bad, negative delta (model > actual) is good
                     if price_diff > 0:
-                        current_price_diff = f"+${price_diff:,.2f}"
-                        price_diff_color = "red"  # Changed: positive delta is bad (overpriced)
+                        current_price_diff = f"${price_diff:,.2f}"
+                        price_diff_color = "#f5365c"  # Bright red for positive delta
                     elif price_diff < 0:
-                        current_price_diff = f"-${abs(price_diff):,.2f}"
-                        price_diff_color = "green"  # Changed: negative delta is good (underpriced)
+                        # Remove negative sign as requested - delta is always a gain
+                        current_price_diff = f"${abs(price_diff):,.2f}"
+                        price_diff_color = "#2dce89"  # Bright green for negative delta
                     else:
                         current_price_diff = f"${price_diff:,.2f}"
                 except Exception as e:
@@ -253,13 +254,15 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 "calculator"
             )
             
+            # Determine card color based on price difference
+            price_diff_card_color = "success" if price_diff < 0 else "danger" if price_diff > 0 else "light"
+            
             price_diff_card = create_kpi_card(
                 "Price Difference",
                 current_price_diff,
                 f"For {st}",
-                "light",
-                "exchange-alt",
-                text_color=price_diff_color
+                price_diff_card_color,
+                "exchange-alt"
             )
             
             # We'll create the demand index card only once, outside this loop

@@ -407,13 +407,48 @@ def create_seat_wise_price_sum_chart(schedule_id):
             # Create figure
             fig = go.Figure()
             
-            # Alternate colors for different seat types
-            colors = ['#1d8cf8', '#00f2c3', '#fd5d93', '#ff9f43']
-            fill_colors = ['rgba(29, 140, 248, 0.1)', 'rgba(0, 242, 195, 0.1)', 'rgba(253, 93, 147, 0.1)', 'rgba(255, 159, 67, 0.1)']
-            model_colors = ['#fd5d93', '#ff9f43', '#1d8cf8', '#00f2c3']
-            model_fill_colors = ['rgba(253, 93, 147, 0.1)', 'rgba(255, 159, 67, 0.1)', 'rgba(29, 140, 248, 0.1)', 'rgba(0, 242, 195, 0.1)']
+            # Enhanced color palette for better visual distinction
+            # Vibrant colors for actual price lines
+            actual_colors = [
+                '#4facfe',  # Bright blue
+                '#00f2c3',  # Teal
+                '#f868e6',  # Magenta
+                '#ffcb57',  # Gold
+                '#43e97b',  # Green
+                '#a166ff'   # Purple
+            ]
             
-            color_idx = i % len(colors)
+            # Subtle fill colors for actual price areas
+            actual_fill_colors = [
+                'rgba(79, 172, 254, 0.1)',  # Blue fill
+                'rgba(0, 242, 195, 0.1)',   # Teal fill
+                'rgba(248, 104, 230, 0.1)', # Magenta fill
+                'rgba(255, 203, 87, 0.1)',  # Gold fill
+                'rgba(67, 233, 123, 0.1)',  # Green fill
+                'rgba(161, 102, 255, 0.1)'  # Purple fill
+            ]
+            
+            # Complementary colors for model price lines
+            model_colors = [
+                '#ff5e62',  # Coral red
+                '#ff9f43',  # Orange
+                '#5e60ce',  # Indigo
+                '#0072ff',  # Royal blue
+                '#fd5d93',  # Pink
+                '#17c0eb'   # Sky blue
+            ]
+            
+            # Subtle fill colors for model price areas
+            model_fill_colors = [
+                'rgba(255, 94, 98, 0.1)',   # Coral fill
+                'rgba(255, 159, 67, 0.1)',  # Orange fill
+                'rgba(94, 96, 206, 0.1)',   # Indigo fill
+                'rgba(0, 114, 255, 0.1)',   # Royal blue fill
+                'rgba(253, 93, 147, 0.1)',  # Pink fill
+                'rgba(23, 192, 235, 0.1)'   # Sky blue fill
+            ]
+            
+            color_idx = i % len(actual_colors)
             
             # Add trace for actual price sum
             fig.add_trace(go.Scatter(
@@ -421,10 +456,10 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 y=seat_type_df['total_actual_price'],
                 mode='lines+markers',
                 name='Actual Price Sum',
-                line=dict(color=colors[color_idx], width=3, shape='spline', smoothing=1.3),
-                marker=dict(size=8, color=colors[color_idx], line=dict(width=2, color='#ffffff')),
+                line=dict(color=actual_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff')),
                 fill='tozeroy',
-                fillcolor=fill_colors[color_idx]
+                fillcolor=actual_fill_colors[color_idx]
             ))
             
             # Add trace for model price sum
@@ -434,7 +469,7 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 name="Model Price Sum",
                 line=dict(color=model_colors[color_idx], width=3, shape='spline', smoothing=1.3),
                 mode='lines+markers',
-                marker=dict(size=8, color=model_colors[color_idx], line=dict(width=2, color='#ffffff')),
+                marker=dict(size=8, color=model_colors[color_idx], line=dict(width=2, color=model_colors[color_idx])),  # Fix model price marker styling
                 fill='tozeroy',
                 fillcolor=model_fill_colors[color_idx]
             ))

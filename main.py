@@ -126,6 +126,32 @@ app.index_string = '''
                 border-color: #5e72e4 !important;
                 box-shadow: 0 0 0 3px rgba(94, 114, 228, 0.25) !important;
             }
+            
+            /* Icon circle styling */
+            .icon-circle {
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .bg-info-subtle {
+                background-color: rgba(66, 153, 225, 0.15);
+            }
+            
+            .bg-success-subtle {
+                background-color: rgba(72, 187, 120, 0.15);
+            }
+            
+            .bg-danger-subtle {
+                background-color: rgba(245, 101, 101, 0.15);
+            }
+            
+            .card-header-gradient {
+                background: linear-gradient(87deg, #172b4d, #1a174d);
+            }
         </style>
     </head>
     <body>
@@ -267,10 +293,17 @@ def update_schedule_id_slicer(date_of_journey):
         Input("schedule-id-dropdown", "value"),
         Input("hours-before-departure-dropdown", "value"),
         Input("date-of-journey-dropdown", "value"),
-        Input("operator-dropdown", "value")
+        Input("operator-name-container", "children")
     ]
 )
-def update_dashboard(schedule_id, hours_before_departure, date_of_journey, operator_id):
+def update_dashboard(schedule_id, hours_before_departure, date_of_journey, operator_name_div):
+    # Extract operator_id from the operator-name-container div if available
+    operator_id = None
+    if operator_name_div is not None and len(operator_name_div) > 0:
+        # The operator name is stored in the div, we can get the operator_id from the schedule_id
+        if schedule_id:
+            from db_utils import get_operator_id_by_schedule_id
+            operator_id = get_operator_id_by_schedule_id(schedule_id)
     """Update dashboard components based on selected filters - seat type filter removed as requested"""
     # Set seat_type to None to show all seat types
     seat_type = None
