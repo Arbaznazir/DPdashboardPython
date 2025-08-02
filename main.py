@@ -56,10 +56,7 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.Div(id="occupancy-container", className="mb-4")
-        ], width=6),
-        dbc.Col([
-            html.Div(id="seat-scatter-container", className="mb-4")
-        ], width=6),
+        ], width=12)
     ]),
     
     # Seat-wise Price Sum Chart row
@@ -144,7 +141,6 @@ def update_schedule_id_slicer(date_of_journey):
     [
         Output("kpi-container", "children"),
         Output("occupancy-container", "children"),
-        Output("seat-scatter-container", "children"),
         Output("data-table-container", "children"),
         Output("filtered-data-store", "data"),
         Output("seat-wise-price-sum-container", "children")
@@ -182,12 +178,7 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
         print(f"Error creating occupancy chart: {str(e)}")
         occupancy_chart = default_message
     
-    try:
-        # Get seat scatter chart
-        seat_scatter_chart = create_seat_scatter_chart(schedule_id, hours_before_departure, date_of_journey)
-    except Exception as e:
-        print(f"Error creating seat scatter chart: {str(e)}")
-        seat_scatter_chart = default_message
+    # Seat scatter chart removed as requested
     
     try:
         # Get data for table
@@ -228,7 +219,7 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
         print(f"Error creating seat-wise price sum chart: {str(e)}")
         seat_wise_price_sum_chart = html.Div([html.P(f"Error loading seat-wise price sum chart: {str(e)}", className="text-danger text-center")])
     
-    return kpi_row, occupancy_chart, seat_scatter_chart, data_table, data_json, seat_wise_price_sum_chart
+    return kpi_row, occupancy_chart, data_table, data_json, seat_wise_price_sum_chart
 
 # Callback to update seat price slider based on selected schedule ID and hours before departure
 @app.callback(

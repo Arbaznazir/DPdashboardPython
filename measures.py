@@ -95,13 +95,55 @@ def get_price_delta_data(schedule_id=None, operator_id=None, seat_type=None, hou
     return df
 
 def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
-    """Get occupancy data for charts"""
-    df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    """Get occupancy data for charts - simplified version that directly gets data from seat_prices_raw"""
+    # Return empty DataFrame if no schedule_id is provided
+    if schedule_id is None:
+        return pd.DataFrame()
     
+    # Simple query to get occupancy data directly from seat_prices_raw table
+    # Include seat_type to allow for separate graphs per seat type
+    query = """
+    SELECT 
+        "schedule_id",
+        "hours_before_departure",
+        "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
+        "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy",
+        "seat_type"
+    FROM 
+        seat_prices_raw
+    WHERE 
+        "schedule_id" = %(schedule_id)s
+        AND "actual_occupancy" IS NOT NULL
+        AND "expected_occupancy" IS NOT NULL
+    ORDER BY 
+        "seat_type", "hours_before_departure" DESC
+    """
+    
+    params = {'schedule_id': schedule_id}
+    df = execute_query(query, params)
+    
+    # Return empty DataFrame if no data was found
     if df is None or df.empty:
         return pd.DataFrame()
     
-    # Rest of the occupancy data function would go here
+    # Group by seat_type and hours_before_departure to eliminate duplicates
+    # This ensures we get one data point per hour per seat type
+    df = df.groupby(['seat_type', 'hours_before_departure']).agg({
+        'actual_occupancy': 'mean',
+        'expected_occupancy': 'mean',
+        'schedule_id': 'first'
+    }).reset_index()
+    
+    # Convert occupancy values to numeric and round to 2 decimal places
+    df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce').round(2)
+    df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce').round(2)
+    
+    # Drop any rows with NaN values after conversion
+    df = df.dropna(subset=['actual_occupancy', 'expected_occupancy'])
+    
+    # Sort by seat_type and hours_before_departure in descending order (highest to lowest)
+    df = df.sort_values(['seat_type', 'hours_before_departure'], ascending=[True, False])
+    
     return df
 
 def get_seat_wise_price_sum_by_hour(schedule_id):

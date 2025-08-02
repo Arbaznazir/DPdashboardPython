@@ -101,60 +101,144 @@ def create_price_delta_chart(schedule_id=None, operator_id=None, seat_type=None,
     )
 
 def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
-    """Create a chart showing actual vs expected occupancy"""
-    df = get_occupancy_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    
-    if df.empty:
+    """Create a chart showing actual vs expected occupancy, with separate charts for each seat type"""
+    # Only proceed if we have a schedule_id
+    if schedule_id is None:
         return dcc.Graph(
             figure=go.Figure().add_annotation(
-                text="No data available",
+                text="Please select a Schedule ID",
                 xref="paper", yref="paper",
                 x=0.5, y=0.5, showarrow=False
             )
         )
     
-    fig = go.Figure()
+    # Get occupancy data for all hours and seat types
+    df = get_occupancy_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
     
-    fig.add_trace(go.Scatter(
-        x=df['TimeAndDateStamp'],
-        y=df['actual_occupancy'],
-        mode='lines+markers',
-        name='Actual Occupancy',
-        line=dict(color='#2E86C1', width=2),
-        marker=dict(size=8)
-    ))
+    if df is None or df.empty:
+        return dcc.Graph(
+            figure=go.Figure().add_annotation(
+                text="No occupancy data available for this schedule",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False
+            )
+        )
     
-    fig.add_trace(go.Scatter(
-        x=df['TimeAndDateStamp'],
-        y=df['expected_occupancy'],
-        mode='lines+markers',
-        name='Expected Occupancy',
-        line=dict(color='#F39C12', width=2, dash='dot'),
-        marker=dict(size=8)
-    ))
+    # Convert hours_before_departure to numeric for proper sorting
+    df['hours_before_departure'] = pd.to_numeric(df['hours_before_departure'], errors='coerce')
     
-    fig.update_layout(
-        title='Occupancy Trend: Actual vs Expected',
-        xaxis_title='Time',
-        yaxis_title='Occupancy (%)',
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        margin=dict(l=40, r=40, t=60, b=40),
-        hovermode="x unified"
-    )
+    # Get unique seat types
+    seat_types = df['seat_type'].unique()
     
-    return dbc.Card(
-        [
-            dbc.CardHeader(html.H5("Occupancy Analysis")),
-            dbc.CardBody(dcc.Graph(figure=fig))
-        ],
-        className="mb-4"
-    )
+    # If there's only one seat type, create a single chart
+    if len(seat_types) == 1:
+        # Filter data for this seat type
+        seat_df = df[df['seat_type'] == seat_types[0]].sort_values('hours_before_departure', ascending=False)
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add traces for actual and expected occupancy
+        fig.add_trace(go.Scatter(
+            x=seat_df['hours_before_departure'],
+            y=seat_df['actual_occupancy'],
+            mode='lines+markers',
+            name='Actual Occupancy',
+            line=dict(color='#0072B2', shape='spline', smoothing=1.3),  # Blue color, smooth curve
+            marker=dict(size=8)
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=seat_df['hours_before_departure'],
+            y=seat_df['expected_occupancy'],
+            mode='lines+markers',
+            name='Expected Occupancy',
+            line=dict(color='#E69F00', shape='spline', smoothing=1.3, dash='dot'),  # Orange color, smooth curve, dotted
+            marker=dict(size=8)
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f'Occupancy Trend: Actual vs Expected - {seat_types[0]}',
+            xaxis_title='Hours Before Departure',
+            yaxis_title='Occupancy (%)',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            margin=dict(l=50, r=50, t=80, b=50),
+            height=400
+        )
+        
+        # Ensure x-axis is properly formatted
+        fig.update_xaxes(
+            type='category',  # Use category type for discrete values
+            categoryorder='array',  # Order by the array we provide
+            categoryarray=sorted(seat_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
+        )
+        
+        return dcc.Graph(figure=fig)
+    
+    # If there are multiple seat types, create a chart for each seat type
+    else:
+        charts = []
+        
+        for st in seat_types:
+            # Filter data for this seat type
+            seat_df = df[df['seat_type'] == st].sort_values('hours_before_departure', ascending=False)
+            
+            # Create figure
+            fig = go.Figure()
+            
+            # Add traces for actual and expected occupancy
+            fig.add_trace(go.Scatter(
+                x=seat_df['hours_before_departure'],
+                y=seat_df['actual_occupancy'],
+                mode='lines+markers',
+                name='Actual Occupancy',
+                line=dict(color='#0072B2', shape='spline', smoothing=1.3),  # Blue color, smooth curve
+                marker=dict(size=8)
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=seat_df['hours_before_departure'],
+                y=seat_df['expected_occupancy'],
+                mode='lines+markers',
+                name='Expected Occupancy',
+                line=dict(color='#E69F00', shape='spline', smoothing=1.3, dash='dot'),  # Orange color, smooth curve, dotted
+                marker=dict(size=8)
+            ))
+            
+            # Update layout
+            fig.update_layout(
+                title=f'Occupancy Trend: Actual vs Expected - {st}',
+                xaxis_title='Hours Before Departure',
+                yaxis_title='Occupancy (%)',
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                margin=dict(l=50, r=50, t=80, b=50),
+                height=400
+            )
+            
+            # Ensure x-axis is properly formatted
+            fig.update_xaxes(
+                type='category',  # Use category type for discrete values
+                categoryorder='array',  # Order by the array we provide
+                categoryarray=sorted(seat_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
+            )
+            
+            charts.append(dcc.Graph(figure=fig))
+        
+        # Return a div containing all charts
+        return html.Div(charts)
 
 def create_seat_scatter_chart(schedule_id=None, hours_before_departure=None, date_of_journey=None):
     """Create a scatter plot showing seat pricing vs sales percentage"""
@@ -245,29 +329,36 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 y=seat_type_df['total_actual_price'],
                 mode='lines+markers',
                 name='Actual Price Sum',
-                line=dict(color='#2E86C1', width=2),
-                marker=dict(size=8),
-                hovertemplate='%{x} hours before departure<br>Actual Price Sum: $%{y:.2f}<br>Seat Count: ' + 
-                              seat_type_df['seat_count'].astype(str) + '<extra></extra>'
+                line=dict(color='blue', width=2),
+                marker=dict(size=8)
             ))
             
             # Add trace for model price sum
             fig.add_trace(go.Scatter(
                 x=seat_type_df['hours_before_departure'],
                 y=seat_type_df['total_model_price'],
+                name="Model Price Sum",
+                line=dict(color='red', width=2, dash='dot'),
                 mode='lines+markers',
-                name='Model Price Sum',
-                line=dict(color='#F39C12', width=2, dash='dot'),
-                marker=dict(size=8),
-                hovertemplate='%{x} hours before departure<br>Model Price Sum: $%{y:.2f}<br>Seat Count: ' + 
-                              seat_type_df['seat_count'].astype(str) + '<extra></extra>'
+                marker=dict(size=8)
             ))
+            
+            # Set x-axis title
+            fig.update_xaxes(
+                title_text="Hours Before Departure",
+                # Ensure x-axis is properly formatted
+                type='category',  # Use category type for discrete values
+                categoryorder='array',  # Order by the array we provide
+                categoryarray=sorted(seat_type_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
+            )
+            
+            # Set y-axes titles
+            fig.update_yaxes(title_text="Price Sum ($)")
             
             # Update layout
             fig.update_layout(
-                title=f'Seat Type: {seat_type} - Total Price Sum by Hours Before Departure',
-                xaxis_title='Hours Before Departure',
-                yaxis_title='Price Sum ($)',
+                title=f"Seat-wise Price Sum - {seat_type}",
+                hovermode="x unified",
                 legend=dict(
                     orientation="h",
                     yanchor="bottom",
@@ -275,8 +366,8 @@ def create_seat_wise_price_sum_chart(schedule_id):
                     xanchor="right",
                     x=1
                 ),
-                margin=dict(l=40, r=40, t=60, b=40),
-                hovermode="x unified"
+                margin=dict(l=50, r=50, t=80, b=50),  # Add some margin
+                height=400  # Set a fixed height
             )
             
             # Add the chart to the container
