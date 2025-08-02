@@ -207,7 +207,7 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
             y=seat_df['actual_occupancy'],
             mode='lines+markers',
             name='Actual Occupancy',
-            line=dict(color='#1d8cf8', width=3, shape='spline', smoothing=1.3),  # Blue color, smooth curve
+            line=dict(color='#1d8cf8', width=3, shape='linear'),  # Blue color, linear line to show actual variations
             marker=dict(size=8, color='#1d8cf8', line=dict(width=2, color='#ffffff'))
         ))
         
@@ -216,7 +216,7 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
             y=seat_df['expected_occupancy'],
             mode='lines+markers',
             name='Expected Occupancy',
-            line=dict(color='#ff9f43', width=3, shape='spline', smoothing=1.3, dash='dot'),  # Orange color, smooth curve, dotted
+            line=dict(color='#ff9f43', width=3, shape='linear', dash='dot'),  # Orange color, linear line with dot pattern
             marker=dict(size=8, color='#ff9f43', line=dict(width=2, color='#ffffff'))
         ))
         
@@ -253,7 +253,7 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
                 y=seat_df['actual_occupancy'],
                 mode='lines+markers',
                 name='Actual Occupancy',
-                line=dict(color=actual_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                line=dict(color=actual_colors[color_idx], width=3, shape='linear'),  # Linear line to show actual variations
                 marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff'))
             ))
             
@@ -262,7 +262,7 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
                 y=seat_df['expected_occupancy'],
                 mode='lines+markers',
                 name='Expected Occupancy',
-                line=dict(color=expected_colors[color_idx], width=3, shape='spline', smoothing=1.3, dash='dot'),
+                line=dict(color=expected_colors[color_idx], width=3, shape='linear', dash='dot'),  # Linear line to show actual variations
                 marker=dict(size=8, color=expected_colors[color_idx], line=dict(width=2, color='#ffffff'))
             ))
             
