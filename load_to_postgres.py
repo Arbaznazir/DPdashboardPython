@@ -5,8 +5,8 @@ from psycopg2 import sql
 from datetime import datetime
 
 # ----------------- CONFIG -----------------
-SEAT_PRICES_DIR = r"D:\Programming\DP-Dashboard\seat_prices"
-SEAT_WISE_PRICES_DIR = r"D:\Programming\DP-Dashboard\seat_wise_prices"
+SEAT_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_prices"
+SEAT_WISE_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_wise_prices"
 LOG_FILE = r"D:\Programming\DP-Dashboard\loaded_files_log\loaded_files.txt"
 DB_NAME = "dynamic_pricing_db"
 DB_USER = "postgres"
