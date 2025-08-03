@@ -1,5 +1,5 @@
 import dash
-from dash import html, dcc, dash_table
+from dash import html, dcc, dash_table, callback_context
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
@@ -301,6 +301,8 @@ app.layout = dbc.Container([
         ], width=12)
     ], className="mb-4", id="seat-pricing-table-container", style={"display": "none"}),
     
+    # Monthly Delta Analysis is now integrated in the slicers panel
+    
     # Data table (hidden by default)
     dbc.Row([
         dbc.Col([
@@ -318,26 +320,25 @@ app.layout = dbc.Container([
     
 ], fluid=True)
 
-# Callback to update hours before departure slicer when schedule ID is selected
+# Callback to update hours before departure dropdown when schedule ID is selected
 @app.callback(
     [
-        Output("hours-before-departure-container", "style"),
         Output("hours-before-departure-dropdown", "options")
     ],
     [Input("schedule-id-dropdown", "value")]
 )
 def update_hours_before_departure_slicer(schedule_id):
-    """Update hours before departure slicer based on selected schedule ID"""
+    """Update hours before departure dropdown options based on selected schedule ID"""
     from db_utils import get_hours_before_departure
     
     if schedule_id:
-        # Get hours before departure for the selected schedule ID
-        hours_before_departure = get_hours_before_departure(schedule_id)
-        options = [{'label': str(hbd), 'value': hbd} for hbd in hours_before_departure]
-        return {'display': 'block'}, options
+        # Get hours before departure options for the selected schedule ID
+        hours = get_hours_before_departure(schedule_id)
+        options = [{'label': f'{h} hours', 'value': h} for h in hours]
+        return [options]
     else:
-        # Hide the slicer if no schedule ID is selected
-        return {'display': 'none'}, []
+        # No schedule ID selected, return empty options
+        return [[]]
 
 # Callback to update schedule ID slicer when date of journey is selected
 @app.callback(
@@ -607,22 +608,66 @@ def toggle_seat_pricing_table(n_clicks, current_style):
 
 # Callback to toggle detailed data visibility
 @app.callback(
-    Output("detailed-data-container", "style"),
-    Output("toggle-detailed-data", "children"),
-    Input("toggle-detailed-data", "n_clicks"),
-    State("detailed-data-container", "style")
+    [
+        Output("detailed-data-container", "style"),
+        Output("toggle-detailed-data", "children")
+    ],
+    [Input("toggle-detailed-data", "n_clicks")],
+    [State("detailed-data-container", "style")]
 )
 def toggle_detailed_data(n_clicks, current_style):
+    """Toggle the visibility of the detailed data table"""
     if n_clicks is None:
         # Initial load - keep hidden
         return {"display": "none"}, [html.I(className="fas fa-database mr-2"), "Show Detailed Data"]
     
+    # Toggle visibility
     if current_style.get("display") == "none":
         # Show the data
         return {"display": "block"}, [html.I(className="fas fa-database mr-2"), "Hide Detailed Data"]
     else:
         # Hide the data
         return {"display": "none"}, [html.I(className="fas fa-database mr-2"), "Show Detailed Data"]
+
+# Monthly Delta Analysis is now integrated in the slicers panel and always visible
+
+# Callback to update Monthly Delta Analysis based on selected month/year
+@app.callback(
+    Output("monthly-delta-kpis", "children"),
+    [
+        Input("month-selector", "value"),
+        Input("year-selector", "value"),
+        Input("calculate-monthly-delta-button", "n_clicks")
+    ],
+    prevent_initial_call=True
+)
+def update_monthly_delta(month, year, n_clicks):
+    """Update Monthly Delta Analysis based on selected month and year, triggered by button click"""
+    from kpis import create_monthly_delta_kpis
+    
+    # Check if callback was triggered by button click
+    ctx = callback_context
+    if not ctx.triggered:
+        # No trigger (initial load)
+        return html.Div([html.P("Click 'Calculate' to view analysis", className="text-center text-muted")])
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Only proceed if button was clicked or if this is an initial load with valid month/year
+    if trigger_id != "calculate-monthly-delta-button" and n_clicks is None:
+        return html.Div([html.P("Click 'Calculate' to view analysis", className="text-center text-muted")])
+    
+    if month is None or year is None:
+        return html.Div([html.P("Select month and year to view Monthly Delta Analysis", className="text-center text-muted")])
+    
+    try:
+        print(f"Calculating Monthly Delta for {month}/{year}")
+        # Create Monthly Delta KPIs
+        monthly_delta_kpis = create_monthly_delta_kpis(month, year)
+        return monthly_delta_kpis
+    except Exception as e:
+        print(f"Error creating Monthly Delta KPIs: {str(e)}")
+        return html.Div([html.P(f"Error: {str(e)}", className="text-center text-danger")])
 
 # Run the app
 if __name__ == '__main__':

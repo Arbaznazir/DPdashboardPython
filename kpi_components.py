@@ -28,12 +28,12 @@ def create_price_kpis():
             ])
         ], className="mb-3"),
         
-        # Price Difference KPI Card
+        # Price Delta KPI Card
         dbc.Card([
-            dbc.CardHeader("Price Difference", className="fw-bold"),
+            dbc.CardHeader("Price Delta", className="fw-bold"),
             dbc.CardBody([
                 html.H3(id="price-difference-value", children="-"),
-                html.P("Difference between actual and model price", className="text-muted")
+                html.P("Delta between actual and model price", className="text-muted")
             ])
         ])
     ], className="mb-4")
@@ -76,13 +76,9 @@ def update_price_kpis(schedule_id, seat_type, hours_before_departure):
             actual_price_display = f"${actual_price:,.2f}"
             model_price_display = f"${model_price:,.2f}"
             
-            # Format price difference with color based on value
-            if price_diff > 0:
-                price_diff_display = html.Span(f"+${price_diff:,.2f}", style={"color": "green"})
-            elif price_diff < 0:
-                price_diff_display = html.Span(f"-${abs(price_diff):,.2f}", style={"color": "red"})
-            else:
-                price_diff_display = f"${price_diff:,.2f}"
+            # Format price delta as absolute value (always positive)
+            price_diff_abs = abs(price_diff)
+            price_diff_display = html.Span(f"${price_diff_abs:,.2f}", style={"color": "green"})
         else:
             # If either price is not available, show appropriate message
             if actual_price is None:

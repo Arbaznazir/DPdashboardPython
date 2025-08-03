@@ -2,6 +2,8 @@ import dash
 from dash import dcc, html, callback, Input, Output, State, no_update
 import dash_bootstrap_components as dbc
 from db_utils import get_schedule_ids, get_operators, get_seat_types, get_hours_before_departure, get_date_of_journey, get_operator_id_by_schedule_id, get_operator_name_by_id, get_seat_types_by_schedule_id, get_origin_destination_by_schedule_id, get_all_dates_of_journey
+import datetime
+import calendar
 
 def create_schedule_id_slicer():
     """Create a dropdown slicer for schedule IDs with search button"""
@@ -158,139 +160,287 @@ def create_hours_before_departure_slicer(schedule_id=None):
 
 def create_date_of_journey_slicer():
     """Create a dropdown slicer for date of journey"""
-    # This will be populated with all available dates of journey
-    # and will be always visible as the primary filter
-    from db_utils import get_all_dates_of_journey
-    
+    # Get all available dates of journey
     dates = get_all_dates_of_journey()
-    options = [{'label': date, 'value': date} for date in dates]
+    
+    # Format dates for display
+    date_options = [{'label': date.strftime('%Y-%m-%d'), 'value': date.strftime('%Y-%m-%d')} for date in dates]
     
     return html.Div([
         html.Label('Date of Journey', className='fw-bold mb-2 text-info'),
-        dbc.Row([
-            dbc.Col([
-                html.I(className="fas fa-calendar-alt me-2 text-warning"),
-                dcc.Dropdown(
-                    id='date-of-journey-dropdown',
-                    options=options,
-                    placeholder='Select Date',
-                    clearable=True,
-                    className='dark-dropdown',
-                    style={
-                        'border-radius': '8px',
-                        'background-color': '#2c2c44',
-                        'color': 'white',
-                        'width': '100%',
-                        'min-width': '120px'
-                    }
-                )
-            ], width=12, className='d-flex align-items-center')
-        ], className='mb-2')
-    ], id='date-of-journey-container', className='filter-section')
+        dcc.Dropdown(
+            id='date-of-journey-dropdown',
+            options=date_options,
+            value=date_options[0]['value'] if date_options else None,
+            clearable=False,
+            className='dark-dropdown',
+            style={
+                'border-radius': '8px',
+                'background-color': '#2c2c44',
+                'color': 'white',
+                'width': '100%'
+            }
+        )
+    ], className='filter-section mb-3')
+
+def create_monthly_delta_section():
+    """Create a modern Monthly Delta Analysis section with month/year selectors and calculate button"""
+    current_year = datetime.datetime.now().year
+    current_month = datetime.datetime.now().month
+    
+    return html.Div([
+        dbc.Card([
+            dbc.CardHeader([
+                html.H5("Monthly Delta Analysis", className="d-flex align-items-center mb-0"),
+                html.I(className="fas fa-chart-line ms-2 text-success")
+            ], className="d-flex align-items-center card-header-gradient"),
+            dbc.CardBody([
+                # Month/Year selectors and calculate button in a single row
+                dbc.Row([
+                    # Month selector
+                    dbc.Col([
+                        html.Label("Month:", className="text-light mb-2"),
+                        dcc.Dropdown(
+                            id="month-selector",
+                            options=[
+                                {"label": month, "value": i} for i, month in enumerate(calendar.month_name) if i > 0
+                            ],
+                            value=current_month,
+                            clearable=False,
+                            className="dark-dropdown",
+                            style={
+                                "background-color": "#2c2c44",
+                                "color": "white",
+                                "border-radius": "8px"
+                            }
+                        )
+                    ], width=5),
+                    
+                    # Year selector
+                    dbc.Col([
+                        html.Label("Year:", className="text-light mb-2"),
+                        dcc.Dropdown(
+                            id="year-selector",
+                            options=[
+                                {"label": str(year), "value": year} 
+                                for year in range(current_year - 2, current_year + 3)
+                            ],
+                            value=current_year,
+                            clearable=False,
+                            className="dark-dropdown",
+                            style={
+                                "background-color": "#2c2c44",
+                                "color": "white",
+                                "border-radius": "8px"
+                            }
+                        )
+                    ], width=4),
+                    
+                    # Calculate button
+                    dbc.Col([
+                        html.Label("\u00A0", className="text-light mb-2"),  # Non-breaking space for alignment
+                        dbc.Button(
+                            [html.I(className="fas fa-calculator me-2"), "Calculate"],
+                            id="calculate-monthly-delta-button",
+                            color="success",
+                            className="w-100",
+                            style={
+                                "boxShadow": "0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)",
+                                "borderRadius": "8px",
+                                "fontWeight": "600"
+                            }
+                        )
+                    ], width=3, className="d-flex align-items-end")
+                ], className="mb-4"),
+                
+                # KPI cards container
+                html.Div(id="monthly-delta-kpis", className="mt-3")
+            ], className="p-3")
+        ], className="mb-4 shadow monthly-delta-card")
+    ])
+
+def create_month_year_selector():
+    """Create month and year selectors for Monthly Delta Analysis"""
+    # Get current month and year
+    current_month = datetime.datetime.now().month
+    current_year = datetime.datetime.now().year
+    
+    # Create month options
+    month_options = [{'label': calendar.month_name[i], 'value': i} for i in range(1, 13)]
+    
+    # Create year options (current year and 2 years before/after)
+    year_options = [{'label': str(year), 'value': year} for year in range(current_year - 2, current_year + 3)]
+    
+    return html.Div([
+        html.Div([
+            html.H5('Monthly Delta Analysis', className='fw-bold mb-3 text-primary'),
+            html.Div([
+                html.Div([
+                    html.Label('Month', className='fw-bold mb-2 text-info d-block'),
+                    dcc.Dropdown(
+                        id='month-selector-dropdown',
+                        options=month_options,
+                        value=current_month,  # Default to current month
+                        clearable=False,
+                        className='dark-dropdown',
+                        style={
+                            'border-radius': '8px',
+                            'background-color': '#2c2c44',
+                            'color': 'white',
+                            'width': '100%'
+                        }
+                    )
+                ], className='me-2', style={'flex': '1'}),
+                html.Div([
+                    html.Label('Year', className='fw-bold mb-2 text-info d-block'),
+                    dcc.Dropdown(
+                        id='year-selector-dropdown',
+                        options=year_options,
+                        value=current_year,  # Default to current year
+                        clearable=False,
+                        className='dark-dropdown',
+                        style={
+                            'border-radius': '8px',
+                            'background-color': '#2c2c44',
+                            'color': 'white',
+                            'width': '100%'
+                        }
+                    )
+                ], className='me-2', style={'flex': '1'}),
+                html.Div([
+                    html.Label('\u00A0', className='fw-bold mb-2 d-block'), # Invisible label for alignment
+                    dbc.Button(
+                        'Calculate',
+                        id='calculate-monthly-delta-button',
+                        color='primary',
+                        className='w-100',
+                        style={
+                            'border-radius': '8px',
+                            'height': '38px',  # Match dropdown height
+                            'background-image': 'linear-gradient(to right, #4facfe 0%, #00f2fe 100%)',
+                            'border': 'none',
+                            'box-shadow': '0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)'
+                        }
+                    )
+                ], style={'flex': '1'})
+            ], className='d-flex')
+        ], className='p-3'),
+        
+        # Container for Monthly Delta KPIs
+        html.Div(id="monthly-delta-container", className="mt-3")
+    ], className='filter-section mt-4 p-0 border border-primary rounded shadow', style={'background-color': '#1e1e2f'})
 
 def create_slicers_panel():
     """Create a panel with all slicers in a single row on desktop, stacked on mobile"""
-    return dbc.Card([
-        dbc.CardHeader([
-            html.H4("Dashboard Filters", className="d-flex align-items-center mb-0"),
-            html.I(className="fas fa-filter ms-2 text-info")
-        ], className="d-flex align-items-center"),
-        dbc.CardBody([
-            dbc.Row([
-                # Date of Journey
-                dbc.Col([
-                    html.Label('Date of Journey', className='fw-bold mb-2 text-info'),
-                    html.Div([
-                        html.I(className="fas fa-calendar-alt me-2 text-warning"),
-                        dcc.Dropdown(
-                            id='date-of-journey-dropdown',
-                            options=[{'label': date, 'value': date} for date in get_all_dates_of_journey()],
-                            placeholder='Select Date',
-                            clearable=True,
-                            className='dark-dropdown',
-                            style={
-                                'border-radius': '8px',
-                                'background-color': '#2c2c44',
-                                'color': 'white',
-                                'width': '100%',
-                            }
-                        )
-                    ], className='d-flex align-items-center')
-                ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
+    return html.Div([
+        # Main filters card
+        dbc.Card([
+            dbc.CardHeader([
+                html.H4("Dashboard Filters", className="d-flex align-items-center mb-0"),
+                html.I(className="fas fa-filter ms-2 text-info")
+            ], className="d-flex align-items-center"),
+            dbc.CardBody([
+                dbc.Row([
+                    # Date of Journey
+                    dbc.Col([
+                        html.Label('Date of Journey', className='fw-bold mb-2 text-info'),
+                        html.Div([
+                            html.I(className="fas fa-calendar-alt me-2 text-warning"),
+                            dcc.Dropdown(
+                                id='date-of-journey-dropdown',
+                                options=[{'label': date, 'value': date} for date in get_all_dates_of_journey()],
+                                placeholder='Select Date',
+                                clearable=True,
+                                className='dark-dropdown',
+                                style={
+                                    'border-radius': '8px',
+                                    'background-color': '#2c2c44',
+                                    'color': 'white',
+                                    'width': '100%',
+                                }
+                            )
+                        ], className='d-flex align-items-center')
+                    ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
+                    
+                    # Schedule ID
+                    dbc.Col([
+                        html.Label('Schedule ID', className='fw-bold mb-2 text-info'),
+                        html.Div([
+                            dcc.Dropdown(
+                                id='schedule-id-dropdown',
+                                options=[],
+                                placeholder='Select Schedule ID',
+                                clearable=True,
+                                className='dark-dropdown',
+                                style={
+                                    'border-radius': '8px',
+                                    'background-color': '#2c2c44',
+                                    'color': 'white',
+                                    'width': '100%',
+                                }
+                            )
+                        ], className='d-flex align-items-center')
+                    ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
+                    
+                    # Hours Before Departure
+                    dbc.Col([
+                        html.Label('Hours Before Departure', className='fw-bold mb-2 text-info'),
+                        html.Div([
+                            html.I(className="fas fa-clock me-2 text-warning"),
+                            dcc.Dropdown(
+                                id='hours-before-departure-dropdown',
+                                options=[],
+                                placeholder='Select Hours',
+                                clearable=True,
+                                className='dark-dropdown',
+                                style={
+                                    'border-radius': '8px',
+                                    'background-color': '#2c2c44',
+                                    'color': 'white',
+                                    'width': '100%',
+                                }
+                            )
+                        ], className='d-flex align-items-center')
+                    ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
+                    
+                    # Schedule ID Search
+                    dbc.Col([
+                        html.Label('Search Schedule ID', className='fw-bold mb-2 text-info'),
+                        html.Div([
+                            dbc.Input(
+                                id='schedule-id-search',
+                                type='text',
+                                placeholder='Enter Schedule ID',
+                                style={
+                                    'border-radius': '8px',
+                                    'background-color': '#2c2c44',
+                                    'color': 'white',
+                                    'border': '1px solid #444',
+                                    'marginRight': '10px'
+                                }
+                            ),
+                            dbc.Button(
+                                html.I(className="fas fa-search"),
+                                id='schedule-id-search-button',
+                                color='info',
+                                style={'border-radius': '8px'}
+                            )
+                        ], className='d-flex align-items-center')
+                    ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0")
+                ], className="mb-4"),
                 
-                # Schedule ID
-                dbc.Col([
-                    html.Label('Schedule ID', className='fw-bold mb-2 text-info'),
-                    html.Div([
-                        dcc.Dropdown(
-                            id='schedule-id-dropdown',
-                            options=[],
-                            placeholder='Select Schedule ID',
-                            clearable=True,
-                            className='dark-dropdown',
-                            style={
-                                'border-radius': '8px',
-                                'background-color': '#2c2c44',
-                                'color': 'white',
-                                'width': '100%',
-                            }
-                        )
-                    ], className='d-flex align-items-center')
-                ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
+                # Route Information Card
+                create_operator_slicer(),
                 
-                # Hours Before Departure
-                dbc.Col([
-                    html.Label('Hours Before Departure', className='fw-bold mb-2 text-info'),
-                    html.Div([
-                        html.I(className="fas fa-clock me-2 text-warning"),
-                        dcc.Dropdown(
-                            id='hours-before-departure-dropdown',
-                            options=[],
-                            placeholder='Select Hours',
-                            clearable=True,
-                            className='dark-dropdown',
-                            style={
-                                'border-radius': '8px',
-                                'background-color': '#2c2c44',
-                                'color': 'white',
-                                'width': '100%',
-                            }
-                        )
-                    ], className='d-flex align-items-center')
-                ], id='hours-before-departure-container', style={'display': 'none'}, xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
-                
-                # Search
-                dbc.Col([
-                    html.Label('Search Schedule ID', className='fw-bold mb-2 text-info'),
-                    html.Div([
-                        dbc.Input(
-                            id='schedule-id-search',
-                            type='text',
-                            placeholder='Enter Schedule ID',
-                            style={
-                                'border-radius': '8px',
-                                'background-color': '#2c2c44',
-                                'color': 'white',
-                                'border': '1px solid #444'
-                            }
-                        ),
-                        dbc.Button(
-                            html.I(className="fas fa-search"),
-                            id='schedule-id-search-button',
-                            color='info',
-                            className='ms-2',
-                            style={'border-radius': '8px'}
-                        )
-                    ], className='d-flex align-items-center')
-                ], xs=12, sm=12, md=6, lg=3, className="mb-3 mb-lg-0"),
-            ], className="mobile-stack"),
-            
-            # Route Info Card (Operator, Origin, Destination)
-            dbc.Row([
-                dbc.Col(create_operator_slicer(), width=12, className="mt-3")
-            ])
-        ])
-    ], className='mb-4 filter-panel shadow')
+                # Hidden divs for storing data
+                html.Div(id='selected-schedule-id-store', style={'display': 'none'}),
+                html.Div(id='selected-hour-store', style={'display': 'none'})
+            ], className="p-3")
+        ], className="mb-4 shadow"),
+        
+        # Monthly Delta Analysis Section
+        create_monthly_delta_section()
+    ])
 
 
 # Callback to update operator info when schedule ID is selected
