@@ -817,6 +817,65 @@ def get_schedule_ids_by_date(date_of_journey=None):
     
     return []
 
+def get_occupancy_by_seat_type(schedule_id, seat_type, hours_before_departure=None):
+    """
+    Get occupancy data for a specific schedule_id, seat_type, and hours_before_departure
+    """
+    if schedule_id is None or seat_type is None:
+        print("Error: schedule_id and seat_type are required for get_occupancy_by_seat_type")
+        return {
+            'actual_occupancy': 0,
+            'expected_occupancy': 0
+        }
+    
+    # Build query to get occupancy data for specific seat type
+    query = """
+    SELECT 
+        "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
+        "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy"
+    FROM 
+        seat_prices_raw
+    WHERE 
+        "schedule_id" = %(schedule_id)s
+        AND "seat_type" = %(seat_type)s
+    """
+    
+    # Add hours_before_departure filter if provided
+    params = {'schedule_id': schedule_id, 'seat_type': seat_type}
+    if hours_before_departure is not None:
+        query += "AND \"hours_before_departure\" = %(hours_before_departure)s "
+        params['hours_before_departure'] = hours_before_departure
+    
+    # Get the latest entry for this combination
+    query += "ORDER BY \"TimeAndDateStamp\" DESC LIMIT 1"
+    
+    # Execute query
+    df = execute_query(query, params)
+    
+    # Return default values if no data found
+    if df is None or df.empty:
+        print(f"No occupancy data found for schedule_id={schedule_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
+        return {
+            'actual_occupancy': 0,
+            'expected_occupancy': 0
+        }
+    
+    # Convert to numeric and round
+    try:
+        actual_occupancy = round(float(df['actual_occupancy'].iloc[0]), 2)
+        expected_occupancy = round(float(df['expected_occupancy'].iloc[0]), 2)
+    except (ValueError, TypeError) as e:
+        print(f"Error converting occupancy values to float: {e}")
+        return {
+            'actual_occupancy': 0,
+            'expected_occupancy': 0
+        }
+    
+    return {
+        'actual_occupancy': actual_occupancy,
+        'expected_occupancy': expected_occupancy
+    }
+
 def get_demand_index(schedule_id, hours_before_departure=None):
     """Get demand index for a specific schedule_id and hours_before_departure"""
     try:

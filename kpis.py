@@ -3,7 +3,7 @@ from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from measures import get_kpi_data
-from db_utils import get_actual_price, get_model_price, get_demand_index
+from db_utils import get_actual_price, get_model_price, get_demand_index, get_occupancy_by_seat_type
 from price_utils import get_prices_by_schedule_and_hour, get_total_seat_prices, get_monthly_delta
 import calendar
 
@@ -296,19 +296,24 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
             
             # We'll create the demand index card only once, outside this loop
             
+            # Get occupancy data specific to this seat type
+            occupancy_data = get_occupancy_by_seat_type(schedule_id, st, hours_before_departure)
+            
+            # Create occupancy card for this seat type with its specific data
+            occupancy_card = create_kpi_card(
+                f"Occupancy - {st}",
+                f"{occupancy_data['actual_occupancy']}%",
+                f"Expected: {occupancy_data['expected_occupancy']}%",
+                "primary",
+                "users"
+            )
+            
             # Add the cards for this seat type to our list (without demand index)
             price_kpi_cards.extend([
                 dbc.Col(current_actual_price_card, width=3),
                 dbc.Col(current_model_price_card, width=3),
                 dbc.Col(price_diff_card, width=3),
-                # Only add the occupancy card for the first row
-                dbc.Col(create_kpi_card(
-                    "Occupancy",
-                    f"{kpi_data['avg_occupancy']}%",
-                    f"Expected: {kpi_data['avg_expected_occupancy']}%",
-                    "primary",
-                    "users"
-                ) if len(price_kpi_cards) == 0 else None, width=3),
+                dbc.Col(occupancy_card, width=3),
             ])
     
     # Create a single demand index card for the entire schedule
