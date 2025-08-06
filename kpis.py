@@ -3,7 +3,7 @@ from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from measures import get_kpi_data
-from db_utils import get_actual_price, get_model_price, get_demand_index, get_occupancy_by_seat_type
+from db_utils import get_actual_price, get_model_price, get_demand_index, get_occupancy_by_seat_type, get_seat_types_count
 from price_utils import get_prices_by_schedule_and_hour, get_total_seat_prices, get_monthly_delta
 import calendar
 
@@ -150,42 +150,84 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
         
         print(f"KPI DEBUG: Processing prices for seat types: {seat_types}")
         
-        # Get demand index once for the schedule (same for all seat types)
+        # Get demand indexes for all seat types in the schedule
         try:
-            demand_index = get_demand_index(schedule_id, hours_before_departure)
-            print(f"KPI DEBUG: Raw demand index value: {demand_index}, type: {type(demand_index)}")
+            demand_indexes = get_demand_index(schedule_id, hours_before_departure)
+            print(f"KPI DEBUG: Raw demand indexes: {demand_indexes}, type: {type(demand_indexes)}")
             
-            if demand_index is not None:
-                # If it's already a string like 'M/L', use it directly
-                if isinstance(demand_index, str):
+            # Initialize a dictionary to store formatted demand indexes by seat type
+            demand_index_displays = {}
+            
+            if demand_indexes is not None and isinstance(demand_indexes, dict):
+                # Process each seat type's demand index
+                for st, di in demand_indexes.items():
+                    if di is not None:
+                        # If it's already a string like 'M/L', use it directly
+                        if isinstance(di, str):
+                            # Check if it's a string like 'M/L'
+                            if '/' in di:
+                                demand_index_displays[st] = di
+                                print(f"KPI DEBUG: Using demand index string value directly for {st}: {di}")
+                            else:
+                                # Try to convert to float for formatting
+                                try:
+                                    di_float = float(di)
+                                    demand_index_displays[st] = f"{di_float:.2f}"
+                                    print(f"KPI DEBUG: Converted string demand index to float for {st}: {demand_index_displays[st]}")
+                                except (ValueError, TypeError):
+                                    demand_index_displays[st] = di
+                                    print(f"KPI DEBUG: Using demand index string value for {st}: {di}")
+                        # If it's a float or other numeric type
+                        else:
+                            try:
+                                di_float = float(di)
+                                demand_index_displays[st] = f"{di_float:.2f}"
+                                print(f"KPI DEBUG: Formatted numeric demand index for {st}: {demand_index_displays[st]}")
+                            except (ValueError, TypeError) as e:
+                                print(f"KPI DEBUG: Error formatting demand index for {st}: {e}")
+                                demand_index_displays[st] = str(di)
+                    else:
+                        demand_index_displays[st] = "N/A"
+                        print(f"KPI DEBUG: No demand index found for schedule {schedule_id}, seat type {st}")
+            elif demand_indexes is not None:
+                # If we got a single demand index (not a dict), use it as a fallback for all seat types
+                # Format it as before
+                if isinstance(demand_indexes, str):
                     # Check if it's a string like 'M/L'
-                    if '/' in demand_index:
-                        demand_index_display = demand_index
-                        print(f"KPI DEBUG: Using demand index string value directly: {demand_index_display}")
+                    if '/' in demand_indexes:
+                        demand_index_display = demand_indexes
+                        print(f"KPI DEBUG: Using single demand index string value directly: {demand_index_display}")
                     else:
                         # Try to convert to float for formatting
                         try:
-                            demand_index_float = float(demand_index)
+                            demand_index_float = float(demand_indexes)
                             demand_index_display = f"{demand_index_float:.2f}"
-                            print(f"KPI DEBUG: Converted string demand index to float: {demand_index_display}")
+                            print(f"KPI DEBUG: Converted single string demand index to float: {demand_index_display}")
                         except (ValueError, TypeError):
-                            demand_index_display = demand_index
-                            print(f"KPI DEBUG: Using demand index string value: {demand_index_display}")
+                            demand_index_display = demand_indexes
+                            print(f"KPI DEBUG: Using single demand index string value: {demand_index_display}")
                 # If it's a float or other numeric type
                 else:
                     try:
-                        demand_index_float = float(demand_index)
+                        demand_index_float = float(demand_indexes)
                         demand_index_display = f"{demand_index_float:.2f}"
-                        print(f"KPI DEBUG: Formatted numeric demand index: {demand_index_display}")
+                        print(f"KPI DEBUG: Formatted single numeric demand index: {demand_index_display}")
                     except (ValueError, TypeError) as e:
-                        print(f"KPI DEBUG: Error formatting demand index: {e}")
-                        demand_index_display = str(demand_index)
+                        print(f"KPI DEBUG: Error formatting single demand index: {e}")
+                        demand_index_display = str(demand_indexes)
+                
+                # Use this single value for all seat types
+                for st in seat_types:
+                    demand_index_displays[st] = demand_index_display
             else:
-                demand_index_display = "N/A"
-                print(f"KPI DEBUG: No demand index found for schedule {schedule_id}")
+                # If no demand indexes found, set N/A for all seat types
+                for st in seat_types:
+                    demand_index_displays[st] = "N/A"
+                print(f"KPI DEBUG: No demand indexes found for schedule {schedule_id}")
         except Exception as e:
-            print(f"Error getting demand index: {e}")
-            demand_index_display = "N/A"
+            print(f"Error getting demand indexes: {e}")
+            # Set N/A for all seat types
+            demand_index_displays = {st: "N/A" for st in seat_types}
             
         # For each seat type, create a KPI card
         for st in seat_types:
@@ -268,11 +310,11 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
             
             # Create KPI cards for this seat type
             current_actual_price_card = create_kpi_card(
-                "Actual Price",
+                "Historic Price",
                 current_actual_price,
                 f"For {st}",
                 "success",
-                "money-bill-wave"
+                "dollar-sign"
             )
             
             current_model_price_card = create_kpi_card(
@@ -301,32 +343,55 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
             
             # Create occupancy card for this seat type with its specific data
             occupancy_card = create_kpi_card(
-                f"Occupancy - {st}",
+                f"Historic Occupancies - {st}",
                 f"{occupancy_data['actual_occupancy']}%",
                 f"Expected: {occupancy_data['expected_occupancy']}%",
                 "primary",
                 "users"
             )
             
-            # Add the cards for this seat type to our list (without demand index)
+            # Get the demand index for this seat type
+            demand_index_display = demand_index_displays.get(st, "N/A")
+            
+            # Create demand index card for this seat type
+            demand_index_card = create_kpi_card(
+                f"Demand Index - {st}",
+                demand_index_display,
+                "For Schedule",
+                "warning",
+                "chart-line"
+            )
+            
+            # Add the cards for this seat type to our list in the requested order
+            # First row: demand index, historic price, model price, delta
             price_kpi_cards.extend([
+                dbc.Col(demand_index_card, width=3),
                 dbc.Col(current_actual_price_card, width=3),
                 dbc.Col(current_model_price_card, width=3),
                 dbc.Col(price_diff_card, width=3),
-                dbc.Col(occupancy_card, width=3),
             ])
+            
+            # Store occupancy cards separately to add them at the end
+            if not hasattr(create_kpi_row, 'occupancy_cards'):
+                create_kpi_row.occupancy_cards = []
+            
+            # Add this occupancy card to our collection
+            create_kpi_row.occupancy_cards.append(dbc.Col(occupancy_card, width=3))
     
-    # Create a single demand index card for the entire schedule
-    if price_kpi_cards:  # Only if we have seat types and prices
-        demand_index_card = create_kpi_card(
-            "Demand Index",
-            demand_index_display,
-            "For Schedule",
-            "warning",
-            "chart-line"
-        )
-        # Add the demand index card at the top, before any seat type cards
-        price_kpi_cards.insert(0, dbc.Col(demand_index_card, width=3))
+    # We've removed the Number of Seat Types KPI card as requested
+    # The seat_types_count function is still available if needed elsewhere
+    # seat_types_count = get_seat_types_count(schedule_id)
+    
+    # Add all occupancy cards at the end
+    if hasattr(create_kpi_row, 'occupancy_cards') and create_kpi_row.occupancy_cards:
+        # Add spacing before occupancy cards
+        price_kpi_cards.append(html.Div(style={"height": "20px"}))
+        
+        # Add all occupancy cards in a row
+        price_kpi_cards.extend(create_kpi_row.occupancy_cards)
+        
+        # Reset the occupancy cards collection for next call
+        create_kpi_row.occupancy_cards = []
         
         # Add total price KPI cards for all seats at the selected hour
         if schedule_id and hours_before_departure is not None:

@@ -876,8 +876,8 @@ def get_occupancy_by_seat_type(schedule_id, seat_type, hours_before_departure=No
         'expected_occupancy': expected_occupancy
     }
 
-def get_demand_index(schedule_id, hours_before_departure=None):
-    """Get demand index for a specific schedule_id and hours_before_departure"""
+def get_demand_index(schedule_id, hours_before_departure=None, seat_type=None):
+    """Get demand index for a specific schedule_id, hours_before_departure, and optionally seat_type"""
     try:
         if not schedule_id:
             print("DEBUG: No schedule_id provided for demand_index")
@@ -885,36 +885,51 @@ def get_demand_index(schedule_id, hours_before_departure=None):
         
         # Convert schedule_id to string to ensure consistency
         schedule_id = str(schedule_id)
-        print(f"DEBUG: Getting demand_index for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}")
+        print(f"DEBUG: Getting demand_index for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}, seat_type={seat_type}")
         
         # Direct query for demand_index column - based on the image, we know it exists
         query = """
-        SELECT "demand_index"
+        SELECT "demand_index", "seat_type"
         FROM seat_prices_raw
         WHERE "schedule_id" = %(schedule_id)s
         """
         
         params = {'schedule_id': schedule_id}
         
+        # Add seat_type filter if provided
+        if seat_type:
+            query += "AND \"seat_type\" = %(seat_type)s "
+            params['seat_type'] = seat_type
+        
         # If hours_before_departure is specified, join with fnGetHoursBeforeDeparture
         if hours_before_departure is not None:
             query = """
-            SELECT spr."demand_index"
+            SELECT spr."demand_index", spr."seat_type"
             FROM seat_prices_raw spr
             JOIN fnGetHoursBeforeDeparture hbd ON spr."schedule_id" = hbd."schedule_id" 
                 AND spr."TimeAndDateStamp" = hbd."TimeAndDateStamp"
             WHERE spr."schedule_id" = %(schedule_id)s
             AND hbd."hours_before_departure" = %(hours_before_departure)s
-            ORDER BY hbd."TimeAndDateStamp" DESC
-            LIMIT 1
             """
+            
+            # Add seat_type filter if provided
+            if seat_type:
+                query += "AND spr.\"seat_type\" = %(seat_type)s "
+                
+            query += """
+            ORDER BY hbd."TimeAndDateStamp" DESC
+            """
+            
             params['hours_before_departure'] = hours_before_departure
         else:
             # If no hours_before_departure, get the most recent demand_index
             query += """
             ORDER BY "TimeAndDateStamp" DESC
-            LIMIT 1
             """
+        
+        # If seat_type is provided, limit to 1 result
+        if seat_type:
+            query += "LIMIT 1"
         
         print(f"DEBUG: Executing demand_index query: {query}")
         df = execute_query(query, params)
@@ -924,35 +939,65 @@ def get_demand_index(schedule_id, hours_before_departure=None):
             
             # Check if demand_index column exists
             if 'demand_index' in df.columns:
-                demand_index = df['demand_index'].iloc[0]
-                print(f"DEBUG: Raw demand_index value: {demand_index}, type: {type(demand_index)}")
-                
-                # Check if the value is None or NaN
-                if pd.isna(demand_index) or demand_index is None:
-                    print(f"DEBUG: demand_index is None or NaN")
-                    return None
-                
-                # From the image, we can see demand_index has values like 'M/L'
-                # Return this directly as a string if it's not numeric
-                if isinstance(demand_index, str):
-                    # Check if it's a string like 'M/L'
-                    if '/' in demand_index or not demand_index.replace('.', '', 1).isdigit():
-                        print(f"DEBUG: demand_index is a string value: {demand_index}")
-                        return demand_index
-                
-                # If it's numeric, convert to float and return
-                try:
-                    demand_index_float = float(demand_index)
-                    print(f"DEBUG: Found demand_index as float: {demand_index_float}")
-                    return demand_index_float
-                except (ValueError, TypeError) as e:
-                    print(f"DEBUG: Error converting demand_index to float: {e}, returning as string")
-                    return str(demand_index)
+                # If seat_type is provided, return a single demand index
+                if seat_type or len(df) == 1:
+                    demand_index = df['demand_index'].iloc[0]
+                    print(f"DEBUG: Raw demand_index value: {demand_index}, type: {type(demand_index)}")
+                    
+                    # Check if the value is None or NaN
+                    if pd.isna(demand_index) or demand_index is None:
+                        print(f"DEBUG: demand_index is None or NaN")
+                        return None
+                    
+                    # From the image, we can see demand_index has values like 'M/L'
+                    # Return this directly as a string if it's not numeric
+                    if isinstance(demand_index, str):
+                        # Check if it's a string like 'M/L'
+                        if '/' in demand_index or not demand_index.replace('.', '', 1).isdigit():
+                            print(f"DEBUG: demand_index is a string value: {demand_index}")
+                            return demand_index
+                    
+                    # If it's numeric, convert to float and return
+                    try:
+                        demand_index_float = float(demand_index)
+                        print(f"DEBUG: Found demand_index as float: {demand_index_float}")
+                        return demand_index_float
+                    except (ValueError, TypeError) as e:
+                        print(f"DEBUG: Error converting demand_index to float: {e}, returning as string")
+                        return str(demand_index)
+                else:
+                    # If no seat_type is provided, return a dictionary of demand indexes by seat type
+                    demand_indexes = {}
+                    for _, row in df.iterrows():
+                        st = row['seat_type']
+                        di = row['demand_index']
+                        
+                        # Skip None or NaN values
+                        if pd.isna(di) or di is None:
+                            continue
+                            
+                        # Process the demand index value
+                        if isinstance(di, str):
+                            if '/' in di or not di.replace('.', '', 1).isdigit():
+                                demand_indexes[st] = di
+                            else:
+                                try:
+                                    demand_indexes[st] = float(di)
+                                except (ValueError, TypeError):
+                                    demand_indexes[st] = str(di)
+                        else:
+                            try:
+                                demand_indexes[st] = float(di)
+                            except (ValueError, TypeError):
+                                demand_indexes[st] = str(di)
+                    
+                    print(f"DEBUG: Found demand indexes by seat type: {demand_indexes}")
+                    return demand_indexes
             else:
                 print(f"DEBUG: demand_index column not found in result")
                 return None
         else:
-            print(f"DEBUG: No data found for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}")
+            print(f"DEBUG: No data found for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}, seat_type={seat_type}")
             return None
     except Exception as e:
         print(f"ERROR in get_demand_index: {e}")
@@ -1026,6 +1071,41 @@ def get_operator_id_by_schedule_id(schedule_id):
         print(f"Error getting operator_id by schedule_id: {e}")
     
     return None
+
+def get_seat_types_count(schedule_id):
+    """
+    Get the count of unique seat types for a specific schedule_id
+    """
+    try:
+        if not schedule_id:
+            print("DEBUG: No schedule_id provided for seat_types_count")
+            return 0
+        
+        # Convert schedule_id to string to ensure consistency
+        schedule_id = str(schedule_id)
+        print(f"DEBUG: Getting seat types count for schedule_id={schedule_id}")
+        
+        # Query to count distinct seat types for the schedule ID
+        query = """
+        SELECT COUNT(DISTINCT "seat_type") as seat_types_count
+        FROM seat_wise_prices_raw
+        WHERE "schedule_id" = %(schedule_id)s
+        """
+        
+        params = {'schedule_id': schedule_id}
+        
+        df = execute_query(query, params)
+        
+        if df is not None and not df.empty:
+            seat_types_count = df['seat_types_count'].iloc[0]
+            print(f"DEBUG: Found {seat_types_count} seat types for schedule_id={schedule_id}")
+            return int(seat_types_count)
+        else:
+            print(f"DEBUG: No seat types found for schedule_id={schedule_id}")
+            return 0
+    except Exception as e:
+        print(f"ERROR in get_seat_types_count: {e}")
+        return 0
 
 def get_date_of_journey(schedule_id=None, hours_before_departure=None):
     """Get date of journey data from dateofjourney view
