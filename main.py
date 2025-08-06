@@ -3,6 +3,8 @@ from dash import html, dcc, dash_table, callback_context
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
+from date_utils import is_past_date
+from date_summary_kpis import create_date_summary_kpis
 
 # Import custom modules
 from db_utils import get_filtered_data, get_seat_wise_data, get_seat_wise_prices
@@ -628,6 +630,24 @@ def toggle_detailed_data(n_clicks, current_style):
     else:
         # Hide the data
         return {"display": "none"}, [html.I(className="fas fa-database mr-2"), "Show Detailed Data"]
+
+# Callback to update Date Summary KPIs based on selected date of journey
+@app.callback(
+    Output("date-summary-container", "children"),
+    [
+        Input("date-of-journey-dropdown", "value")
+    ]
+)
+def update_date_summary_kpis(date_of_journey):
+    """Update Date Summary KPIs based on selected date of journey"""
+    # Only show KPIs if a past date is selected
+    if date_of_journey and is_past_date(date_of_journey):
+        return create_date_summary_kpis(date_of_journey)
+    else:
+        # Return a message if no past date is selected
+        return html.Div([
+            html.P("Select a past date to view summary KPIs", className="text-center text-muted p-3")
+        ])
 
 # Monthly Delta Analysis is now integrated in the slicers panel and always visible
 

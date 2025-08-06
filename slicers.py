@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 from db_utils import get_schedule_ids, get_operators, get_seat_types, get_hours_before_departure, get_date_of_journey, get_operator_id_by_schedule_id, get_operator_name_by_id, get_seat_types_by_schedule_id, get_origin_destination_by_schedule_id, get_all_dates_of_journey
 import datetime
 import calendar
+from date_utils import is_past_date
 
 def create_schedule_id_slicer():
     """Create a dropdown slicer for schedule IDs with search button"""
@@ -182,6 +183,21 @@ def create_date_of_journey_slicer():
             }
         )
     ], className='filter-section mb-3')
+
+def create_date_summary_section():
+    """Create a section for date summary KPIs that only appear for past dates"""
+    return html.Div([
+        dbc.Card([
+            dbc.CardHeader([
+                html.H5("Date Summary Analysis", className="d-flex align-items-center mb-0"),
+                html.I(className="fas fa-calendar-check ms-2 text-info")
+            ], className="d-flex align-items-center card-header-gradient"),
+            dbc.CardBody([
+                # Container for Date Summary KPIs
+                html.Div(id="date-summary-container", className="p-0")
+            ])
+        ])
+    ], className='filter-section mt-4')
 
 def create_monthly_delta_section():
     """Create a modern Monthly Delta Analysis section with month/year selectors and calculate button"""
@@ -438,10 +454,9 @@ def create_slicers_panel():
             ], className="p-3")
         ], className="mb-4 shadow"),
         
-        # Monthly Delta Analysis Section
-        create_monthly_delta_section()
+        # Date Summary Analysis section
+        create_date_summary_section()
     ])
-
 
 # Callback to update operator info when schedule ID is selected
 @callback(

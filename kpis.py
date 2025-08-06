@@ -262,6 +262,7 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
             current_model_price = "N/A"
             current_price_diff = "N/A"
             price_diff_color = "black"
+            price_diff = 0  # Initialize price_diff to avoid variable reference errors
             
             # Calculate price difference if both prices are available
             if actual_price is not None and model_price is not None:
