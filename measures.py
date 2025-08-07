@@ -100,23 +100,27 @@ def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours
     if schedule_id is None:
         return pd.DataFrame()
     
-    # Simple query to get occupancy data directly from seat_prices_raw table
-    # Include seat_type to allow for separate graphs per seat type
+    # Query to get occupancy data with DISTINCT ON to get latest record per seat_type and hours_before_departure
     query = """
-    SELECT 
-        "schedule_id",
-        "hours_before_departure",
-        "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
-        "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy",
-        "seat_type"
-    FROM 
-        seat_prices_raw
-    WHERE 
-        "schedule_id" = %(schedule_id)s
-        AND "actual_occupancy" IS NOT NULL
-        AND "expected_occupancy" IS NOT NULL
-    ORDER BY 
-        "seat_type", "hours_before_departure" DESC
+    WITH latest_snapshots AS (
+        SELECT DISTINCT ON ("seat_type", "hours_before_departure") 
+            "schedule_id",
+            "hours_before_departure",
+            "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
+            "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy",
+            "seat_type",
+            "TimeAndDateStamp"
+        FROM 
+            seat_prices_raw
+        WHERE 
+            "schedule_id" = %(schedule_id)s
+            AND "actual_occupancy" IS NOT NULL
+            AND "expected_occupancy" IS NOT NULL
+        ORDER BY 
+            "seat_type", "hours_before_departure", "TimeAndDateStamp" DESC
+    )
+    SELECT * FROM latest_snapshots
+    ORDER BY "seat_type", "hours_before_departure" DESC
     """
     
     params = {'schedule_id': schedule_id}
@@ -126,13 +130,14 @@ def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours
     if df is None or df.empty:
         return pd.DataFrame()
     
-    # Group by seat_type and hours_before_departure to eliminate duplicates
-    # This ensures we get one data point per hour per seat type
-    df = df.groupby(['seat_type', 'hours_before_departure']).agg({
-        'actual_occupancy': 'mean',
-        'expected_occupancy': 'mean',
-        'schedule_id': 'first'
-    }).reset_index()
+    # Get the latest record for each seat_type and hours_before_departure combination
+    # First, sort by TimeAndDateStamp in descending order (if available)
+    if 'TimeAndDateStamp' in df.columns:
+        df = df.sort_values(['seat_type', 'hours_before_departure', 'TimeAndDateStamp'], 
+                           ascending=[True, True, False])
+    
+    # Then take the first record for each group (which will be the latest due to sorting)
+    df = df.groupby(['seat_type', 'hours_before_departure']).first().reset_index()
     
     # Convert occupancy values to numeric and round to 2 decimal places
     df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce').round(2)
@@ -185,20 +190,32 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
             FROM seat_prices_raw sp
             WHERE sp."schedule_id" = %(schedule_id)s
             ORDER BY sp."hours_before_departure", sp."seat_type", sp."TimeAndDateStamp" DESC
+        ),
+        latest_seat_data AS (
+            -- Get the latest data for each seat number within each snapshot
+            SELECT DISTINCT ON (swp."seat_number", ls."hours_before_departure", ls."seat_type")
+                ls."hours_before_departure",
+                ls."seat_type",
+                swp."seat_number",
+                CAST(swp."actual_fare" AS NUMERIC) as "actual_fare",
+                CAST(swp."final_price" AS NUMERIC) as "final_price"
+            FROM latest_snapshots ls
+            JOIN seat_wise_prices_raw swp 
+                ON swp."TimeAndDateStamp" = ls."TimeAndDateStamp" 
+                AND swp."seat_type" = ls."seat_type"
+                AND swp."schedule_id" = %(schedule_id)s
+            ORDER BY 
+                swp."seat_number", ls."hours_before_departure", ls."seat_type", swp."TimeAndDateStamp" DESC
         )
         SELECT 
-            ls."hours_before_departure",
-            ls."seat_type",
-            SUM(CAST(swp."actual_fare" AS NUMERIC)) as "total_actual_price",
-            SUM(CAST(swp."final_price" AS NUMERIC)) as "total_model_price",
-            COUNT(DISTINCT swp."seat_number") as "seat_count"
-        FROM latest_snapshots ls
-        JOIN seat_wise_prices_raw swp 
-            ON swp."TimeAndDateStamp" = ls."TimeAndDateStamp" 
-            AND swp."seat_type" = ls."seat_type"
-            AND swp."schedule_id" = %(schedule_id)s
-        GROUP BY ls."hours_before_departure", ls."seat_type"
-        ORDER BY ls."hours_before_departure" DESC
+            "hours_before_departure",
+            "seat_type",
+            SUM("actual_fare") as "total_actual_price",
+            SUM("final_price") as "total_model_price",
+            COUNT(DISTINCT "seat_number") as "seat_count"
+        FROM latest_seat_data
+        GROUP BY "hours_before_departure", "seat_type"
+        ORDER BY "hours_before_departure" DESC
         """
         
         params = {'schedule_id': schedule_id}

@@ -436,14 +436,22 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 "calculator"
             )
             
+            # Calculate the actual price difference value
+            total_price_diff_value = float(total_price_diff.replace('$', '').replace(',', ''))
+            
             # Format total price delta as absolute value (always positive)
-            total_price_diff_abs = f"${abs(float(total_price_diff.replace('$', '').replace(',', ''))):,.2f}"
+            total_price_diff_abs = f"${abs(total_price_diff_value):,.2f}"
+            
+            # Determine color based on business logic:
+            # Actual price should be lower than model price for optimal business outcome
+            # So positive delta (actual > model) is bad (red), negative delta (model > actual) is good (green)
+            price_diff_color = "danger" if total_price_diff_value > 0 else "success" if total_price_diff_value < 0 else "light"
             
             total_price_diff_card = create_kpi_card(
                 "Total Price Delta",
                 total_price_diff_abs,
                 "Sum for All Seats",
-                "success",  # Always green since we're showing absolute value
+                price_diff_color,  # Color based on business logic
                 "exchange-alt"
             )
             
