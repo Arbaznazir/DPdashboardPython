@@ -286,13 +286,14 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 
                 # Format price difference with color based on value
                 try:
-                    # Actual price should be lower than model price for optimal business outcome
-                    # So positive delta (actual > model) is bad, negative delta (model > actual) is good
-                    if price_diff > 0:
-                        current_price_diff = f"${price_diff:,.2f}"
+                    # For business logic: model price should be greater than actual price
+                    # So negative delta (model > actual) is good, positive delta (actual > model) is bad
+                    # Always show absolute value (no negative sign) but color indicates business impact
+                    if price_diff > 0:  # actual > model (bad for business)
+                        current_price_diff = f"${abs(price_diff):,.2f}"
                         price_diff_color = "#f5365c"  # Bright red for positive delta (actual > model)
-                    elif price_diff < 0:
-                        # Remove negative sign as requested - delta is always absolute
+                    elif price_diff < 0:  # model > actual (good for business)
+                        # Remove negative sign - delta is always absolute
                         current_price_diff = f"${abs(price_diff):,.2f}"
                         price_diff_color = "#2dce89"  # Bright green for negative delta (model > actual)
                     else:
@@ -412,7 +413,9 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 total_model_price = f"${float(total_prices['total_model_price']):,.2f}"
                 
             if total_prices['price_difference'] is not None:
-                total_price_diff = f"${float(total_prices['price_difference']):,.2f}"
+                price_diff_value = float(total_prices['price_difference'])
+                # Always show absolute value (no negative sign)
+                total_price_diff = f"${abs(price_diff_value):,.2f}"
                 # Determine color based on which price is higher
                 if total_prices['total_actual_price'] > total_prices['total_model_price']:
                     price_diff_color = "danger"  # Red when actual > model (negative for business)
@@ -436,16 +439,17 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
                 "calculator"
             )
             
-            # Calculate the actual price difference value
-            total_price_diff_value = float(total_price_diff.replace('$', '').replace(',', ''))
+            # For the Total Price Delta card, we need to directly compare the actual and model prices
+            # rather than using the pre-calculated difference which might have the wrong sign
             
             # Format total price delta as absolute value (always positive)
-            total_price_diff_abs = f"${abs(total_price_diff_value):,.2f}"
+            price_diff_abs = abs(float(total_prices['total_actual_price']) - float(total_prices['total_model_price']))
+            total_price_diff_abs = f"${price_diff_abs:,.2f}"
             
             # Determine color based on business logic:
-            # Actual price should be lower than model price for optimal business outcome
-            # So positive delta (actual > model) is bad (red), negative delta (model > actual) is good (green)
-            price_diff_color = "danger" if total_price_diff_value > 0 else "success" if total_price_diff_value < 0 else "light"
+            # Green when model > actual (good for business)
+            # Red when actual > model (bad for business)
+            price_diff_color = "success" if float(total_prices['total_model_price']) > float(total_prices['total_actual_price']) else "danger"
             
             total_price_diff_card = create_kpi_card(
                 "Total Price Delta",

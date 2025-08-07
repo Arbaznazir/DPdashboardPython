@@ -25,15 +25,19 @@ def create_date_summary_kpis(date_of_journey=None):
     # Format values for display
     sp_actual = f"${seat_prices['actual_sum']:.2f}"
     sp_model = f"${seat_prices['model_sum']:.2f}"
-    sp_delta = f"${seat_prices['delta']:.2f}"
+    # Always show absolute value for delta (no negative sign)
+    sp_delta = f"${abs(seat_prices['delta']):.2f}"
     
     swp_actual = f"${seat_wise_prices['actual_sum']:.2f}"
     swp_model = f"${seat_wise_prices['model_sum']:.2f}"
-    swp_delta = f"${seat_wise_prices['delta']:.2f}"
+    # Always show absolute value for delta (no negative sign)
+    swp_delta = f"${abs(seat_wise_prices['delta']):.2f}"
     
-    # Determine colors based on delta values
-    sp_delta_color = "success" if seat_prices['delta'] >= 0 else "danger"
-    swp_delta_color = "success" if seat_wise_prices['delta'] >= 0 else "danger"
+    # Determine colors based on business logic:
+    # Green when model > actual (good for business)
+    # Red when actual > model (bad for business)
+    sp_delta_color = "success" if seat_prices['model_sum'] > seat_prices['actual_sum'] else "danger"
+    swp_delta_color = "success" if seat_wise_prices['model_sum'] > seat_wise_prices['actual_sum'] else "danger"
     
     # Create KPI cards for seat_prices_raw
     sp_actual_card = create_kpi_card(

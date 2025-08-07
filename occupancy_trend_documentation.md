@@ -107,8 +107,8 @@ if len(seat_types) == 1:
         y=seat_df['actual_occupancy'],
         mode='lines+markers',
         name='Actual Occupancy',
-        line=dict(color='#1d8cf8', width=3, shape='linear'),  # Blue color, linear line to show actual variations
-        marker=dict(size=8, color='#1d8cf8', line=dict(width=2, color='#ffffff'))
+        line=dict(color='#1d8cf8', width=4),  # Line is slightly thicker
+        marker=dict(size=6, color='rgba(29, 140, 248, 0.6)', line=dict(width=1.5, color='#1d8cf8'))  # Transparent blue
     ))
     
     fig.add_trace(go.Scatter(
@@ -116,8 +116,8 @@ if len(seat_types) == 1:
         y=seat_df['expected_occupancy'],
         mode='lines+markers',
         name='Expected Occupancy',
-        line=dict(color='#ff9f43', width=3, shape='linear', dash='dot'),  # Orange color, linear line with dot pattern
-        marker=dict(size=8, color='#ff9f43', line=dict(width=2, color='#ffffff'))
+        line=dict(color='#ff9f43', width=4, dash='dot'),  # Orange color, dotted line
+        marker=dict(size=6, color='rgba(255, 159, 67, 0.6)', line=dict(width=1.5, color='#ff9f43'))  # Transparent orange
     ))
     
     # Update layout
@@ -163,8 +163,9 @@ else:
             y=seat_df['actual_occupancy'],
             mode='lines+markers',
             name='Actual Occupancy',
-            line=dict(color=actual_colors[color_idx], width=3, shape='linear'),
-            marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff'))
+            line=dict(color=actual_colors[color_idx], width=4),
+            marker=dict(size=6, color=f'rgba{hex_to_rgba(actual_colors[color_idx], 0.6)}',
+                    line=dict(width=1.5, color=actual_colors[color_idx]))
         ))
         
         fig.add_trace(go.Scatter(
@@ -172,8 +173,9 @@ else:
             y=seat_df['expected_occupancy'],
             mode='lines+markers',
             name='Expected Occupancy',
-            line=dict(color=expected_colors[color_idx], width=3, shape='linear', dash='dot'),
-            marker=dict(size=8, color=expected_colors[color_idx], line=dict(width=2, color='#ffffff'))
+            line=dict(color=expected_colors[color_idx], width=4, dash='dot'),
+            marker=dict(size=6, color=f'rgba{hex_to_rgba(expected_colors[color_idx], 0.6)}',
+                    line=dict(width=1.5, color=expected_colors[color_idx]))
         ))
         
         # Update layout

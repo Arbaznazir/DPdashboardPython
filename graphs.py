@@ -4,7 +4,25 @@ from dash import dcc
 import dash_bootstrap_components as dbc
 from dash import html
 import pandas as pd
+import re
 from measures import get_price_trend_data, get_price_delta_data, get_occupancy_data, get_seat_wise_analysis, get_seat_wise_price_sum_by_hour
+
+def hex_to_rgba(hex_color, alpha=1.0):
+    """Convert hex color to rgba format for transparency"""
+    # Remove # if present
+    hex_color = hex_color.lstrip('#')
+    
+    # Convert hex to RGB
+    if len(hex_color) == 6:
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    elif len(hex_color) == 3:
+        r, g, b = int(hex_color[0] * 2, 16), int(hex_color[1] * 2, 16), int(hex_color[2] * 2, 16)
+    else:
+        # Default to black if invalid hex
+        r, g, b = 0, 0, 0
+    
+    # Return rgba string
+    return (r, g, b, alpha)
 
 def create_price_trend_chart(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Create a price trend chart comparing actual fare vs model price"""
@@ -207,8 +225,8 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
             y=seat_df['actual_occupancy'],
             mode='lines+markers',
             name='Actual Occupancy',
-            line=dict(color='#1d8cf8', width=3, shape='linear'),  # Blue color, linear line to show actual variations
-            marker=dict(size=8, color='#1d8cf8', line=dict(width=2, color='#ffffff'))
+            line=dict(color='#1d8cf8', width=4),  # Blue line
+            marker=dict(size=6, color='rgba(29, 140, 248, 0.6)', line=dict(width=1.5, color='#1d8cf8'))  # Transparent blue
         ))
         
         fig.add_trace(go.Scatter(
@@ -216,14 +234,21 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
             y=seat_df['expected_occupancy'],
             mode='lines+markers',
             name='Expected Occupancy',
-            line=dict(color='#ff9f43', width=3, shape='linear', dash='dot'),  # Orange color, linear line with dot pattern
-            marker=dict(size=8, color='#ff9f43', line=dict(width=2, color='#ffffff'))
+            line=dict(color='#ff5e62', width=4, dash='dot'),  # Red line with dots
+            marker=dict(size=6, color='rgba(255, 94, 98, 0.6)', line=dict(width=1.5, color='#ff5e62'))  # Transparent red
         ))
         
         # Update layout
         fig.update_layout(
             title=f"Occupancy Trend for {seat_types[0]}",
             **common_layout
+        )
+        
+        # Ensure x-axis is properly formatted with latest hours (smaller numbers) on the right
+        fig.update_xaxes(
+            type='category',  # Use category type for discrete values
+            categoryorder='array',  # Order by the array we provide
+            categoryarray=sorted(seat_df['hours_before_departure'].unique(), reverse=True)  # Sort from highest to lowest
         )
         
         # Add the chart to the container - full width for single seat type
@@ -233,9 +258,9 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
     else:
         charts = []
         
-        # Define colors for different seat types
-        actual_colors = ['#1d8cf8', '#00f2c3', '#fd5d93', '#ff9f43']
-        expected_colors = ['#3358f4', '#46c37b', '#ec250d', '#f5a623']
+        # Define colors for different seat types - 1st graph: red/blue, 2nd: green/red, etc.
+        actual_colors = ['#1d8cf8', '#00f2c3', '#fd5d93', '#ff9f43']  # Blue, Green, Pink, Orange
+        expected_colors = ['#ff5e62', '#ec250d', '#3358f4', '#f5a623']  # Red, Red, Blue, Orange
         
         for i, st in enumerate(seat_types):
             # Filter data for this seat type
@@ -253,8 +278,9 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
                 y=seat_df['actual_occupancy'],
                 mode='lines+markers',
                 name='Actual Occupancy',
-                line=dict(color=actual_colors[color_idx], width=3, shape='linear'),  # Linear line to show actual variations
-                marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff'))
+                line=dict(color=actual_colors[color_idx], width=4),
+                marker=dict(size=6, color=f'rgba{hex_to_rgba(actual_colors[color_idx], 0.6)}',
+                        line=dict(width=1.5, color=actual_colors[color_idx]))
             ))
             
             fig.add_trace(go.Scatter(
@@ -262,8 +288,9 @@ def create_occupancy_chart(schedule_id=None, operator_id=None, seat_type=None, h
                 y=seat_df['expected_occupancy'],
                 mode='lines+markers',
                 name='Expected Occupancy',
-                line=dict(color=expected_colors[color_idx], width=3, shape='linear', dash='dot'),  # Linear line to show actual variations
-                marker=dict(size=8, color=expected_colors[color_idx], line=dict(width=2, color='#ffffff'))
+                line=dict(color=expected_colors[color_idx], width=4, dash='dot'),
+                marker=dict(size=6, color=f'rgba{hex_to_rgba(expected_colors[color_idx], 0.6)}',
+                        line=dict(width=1.5, color=expected_colors[color_idx]))
             ))
             
             # Update layout
@@ -427,21 +454,22 @@ def create_seat_wise_price_sum_chart(schedule_id):
         charts = []
         
         # Enhanced color palette for better visual distinction
-        # Vibrant colors for actual price lines
+        # Colors for price sum analysis - matching occupancy trend colors
+        # First graph: blue/red, second graph: green/red, etc.
         actual_colors = [
-            '#4facfe',  # Bright blue
-            '#00f2c3',  # Teal
-            '#f868e6',  # Magenta
-            '#ffcb57',  # Gold
-            '#43e97b',  # Green
-            '#a166ff'   # Purple
+            '#1d8cf8',  # Blue (for first graph)
+            '#00f2c3',  # Green (for second graph)
+            '#fd5d93',  # Pink (for third graph)
+            '#ffcb57',  # Gold (for fourth graph)
+            '#43e97b',  # Green (for fifth graph)
+            '#a166ff'   # Purple (for sixth graph)
         ]
         
         # Subtle fill colors for actual price areas
         actual_fill_colors = [
-            'rgba(79, 172, 254, 0.1)',  # Blue fill
-            'rgba(0, 242, 195, 0.1)',   # Teal fill
-            'rgba(248, 104, 230, 0.1)', # Magenta fill
+            'rgba(29, 140, 248, 0.1)',  # Blue fill
+            'rgba(0, 242, 195, 0.1)',   # Green fill
+            'rgba(253, 93, 147, 0.1)',  # Pink fill
             'rgba(255, 203, 87, 0.1)',  # Gold fill
             'rgba(67, 233, 123, 0.1)',  # Green fill
             'rgba(161, 102, 255, 0.1)'  # Purple fill
@@ -449,20 +477,20 @@ def create_seat_wise_price_sum_chart(schedule_id):
         
         # Complementary colors for model price lines
         model_colors = [
-            '#ff5e62',  # Coral red
-            '#ff9f43',  # Orange
-            '#5e60ce',  # Indigo
-            '#0072ff',  # Royal blue
-            '#fd5d93',  # Pink
-            '#17c0eb'   # Sky blue
+            '#ff5e62',  # Red (for first graph)
+            '#ec250d',  # Red (for second graph)
+            '#3358f4',  # Blue (for third graph)
+            '#0072ff',  # Blue (for fourth graph)
+            '#fd5d93',  # Pink (for fifth graph)
+            '#17c0eb'   # Sky blue (for sixth graph)
         ]
         
         # Subtle fill colors for model price areas
         model_fill_colors = [
-            'rgba(255, 94, 98, 0.1)',   # Coral fill
-            'rgba(255, 159, 67, 0.1)',  # Orange fill
-            'rgba(94, 96, 206, 0.1)',   # Indigo fill
-            'rgba(0, 114, 255, 0.1)',   # Royal blue fill
+            'rgba(255, 94, 98, 0.1)',   # Red fill
+            'rgba(236, 37, 13, 0.1)',   # Red fill
+            'rgba(51, 88, 244, 0.1)',   # Blue fill
+            'rgba(0, 114, 255, 0.1)',   # Blue fill
             'rgba(253, 93, 147, 0.1)',  # Pink fill
             'rgba(23, 192, 235, 0.1)'   # Sky blue fill
         ]
@@ -484,8 +512,8 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 y=seat_type_df['total_actual_price'],
                 mode='lines+markers',
                 name='Actual Price Sum',
-                line=dict(color=actual_colors[0], width=3, shape='spline', smoothing=1.3),
-                marker=dict(size=8, color=actual_colors[0], line=dict(width=2, color='#ffffff')),
+                line=dict(color=actual_colors[0], width=4, shape='spline', smoothing=1.3),
+                marker=dict(size=6, color=hex_to_rgba(actual_colors[0], 0.6), line=dict(width=1.5, color=actual_colors[0])),
                 fill='tozeroy',
                 fillcolor=actual_fill_colors[0]
             ))
@@ -495,9 +523,9 @@ def create_seat_wise_price_sum_chart(schedule_id):
                 x=seat_type_df['hours_before_departure'],
                 y=seat_type_df['total_model_price'],
                 name="Model Price Sum",
-                line=dict(color=model_colors[0], width=3, shape='spline', smoothing=1.3),
+                line=dict(color=model_colors[0], width=4, shape='spline', smoothing=1.3),
                 mode='lines+markers',
-                marker=dict(size=8, color=model_colors[0], line=dict(width=2, color=model_colors[0])),
+                marker=dict(size=6, color=hex_to_rgba(model_colors[0], 0.6), line=dict(width=1.5, color=model_colors[0])),
                 fill='tozeroy',
                 fillcolor=model_fill_colors[0]
             ))
@@ -538,10 +566,10 @@ def create_seat_wise_price_sum_chart(schedule_id):
                     y=seat_type_df['total_actual_price'],
                     mode='lines+markers',
                     name='Actual Price Sum',
-                    line=dict(color=actual_colors[color_idx], width=3, shape='spline', smoothing=1.3),
-                    marker=dict(size=8, color=actual_colors[color_idx], line=dict(width=2, color='#ffffff')),
+                    line=dict(color=actual_colors[i % len(actual_colors)], width=4, shape='spline', smoothing=1.3),
+                    marker=dict(size=6, color=hex_to_rgba(actual_colors[i % len(actual_colors)], 0.6), line=dict(width=1.5, color=actual_colors[i % len(actual_colors)])),
                     fill='tozeroy',
-                    fillcolor=actual_fill_colors[color_idx]
+                    fillcolor=actual_fill_colors[i % len(actual_fill_colors)]
                 ))
                 
                 # Add trace for model price sum
@@ -549,11 +577,11 @@ def create_seat_wise_price_sum_chart(schedule_id):
                     x=seat_type_df['hours_before_departure'],
                     y=seat_type_df['total_model_price'],
                     name="Model Price Sum",
-                    line=dict(color=model_colors[color_idx], width=3, shape='spline', smoothing=1.3),
+                    line=dict(color=model_colors[i % len(model_colors)], width=4, shape='spline', smoothing=1.3),
                     mode='lines+markers',
-                    marker=dict(size=8, color=model_colors[color_idx], line=dict(width=2, color=model_colors[color_idx])),
+                    marker=dict(size=6, color=hex_to_rgba(model_colors[i % len(model_colors)], 0.6), line=dict(width=1.5, color=model_colors[i % len(model_colors)])),
                     fill='tozeroy',
-                    fillcolor=model_fill_colors[color_idx]
+                    fillcolor=model_fill_colors[i % len(model_fill_colors)]
                 ))
                 
                 # Update layout
