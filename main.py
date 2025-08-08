@@ -19,6 +19,7 @@ from graphs import (
 )
 from seat_slider import create_seat_price_slider, create_seat_details_card
 from seat_map import create_seat_map
+from price_comparison import create_price_comparison_layout, register_price_comparison_callbacks
 
 # Initialize Dash app with Bootstrap theme - using DARKLY for a modern dark theme
 app = dash.Dash(
@@ -201,8 +202,30 @@ app.index_string = '''
 </html>
 '''
 
-# App layout
-app.layout = dbc.Container([
+# Create a navigation bar
+navbar = dbc.Navbar(
+    dbc.Container(
+        [
+            dbc.NavbarBrand("Dynamic Pricing Dashboard", className="ml-2"),
+            dbc.Nav(
+                [
+                    dbc.NavItem(dbc.NavLink("Dashboard", href="/", id="dashboard-link")),
+                    dbc.NavItem(dbc.NavLink("Price Comparison", href="/price-difference", id="price-comparison-link")),
+                ],
+                className="ml-auto",
+                navbar=True,
+            ),
+        ]
+    ),
+    color="dark",
+    dark=True,
+    className="mb-4",
+)
+
+# Define the dashboard layout
+def create_dashboard_layout():
+    return dbc.Container([
+
     # Header with gradient background
     dbc.Row([
         dbc.Col([
@@ -688,6 +711,39 @@ def update_monthly_delta(month, year, n_clicks):
     except Exception as e:
         print(f"Error creating Monthly Delta KPIs: {str(e)}")
         return html.Div([html.P(f"Error: {str(e)}", className="text-center text-danger")])
+
+# Set up the app layout with navigation and content container
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    navbar,
+    html.Div(id='page-content')
+])
+
+# Register the price comparison callbacks
+register_price_comparison_callbacks(app)
+
+# Callback to render the correct page content based on URL
+@app.callback(
+    Output('page-content', 'children'),
+    Input('url', 'pathname')
+)
+def display_page(pathname):
+    if pathname == '/price-difference':
+        return create_price_comparison_layout()
+    else:  # Default to dashboard
+        return create_dashboard_layout()
+
+# Callback to highlight active nav link
+@app.callback(
+    [Output('dashboard-link', 'active'),
+     Output('price-comparison-link', 'active')],
+    [Input('url', 'pathname')]
+)
+def set_active_link(pathname):
+    if pathname == '/price-difference':
+        return False, True
+    else:
+        return True, False
 
 # Run the app
 if __name__ == '__main__':

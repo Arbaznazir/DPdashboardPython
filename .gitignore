@@ -2,8 +2,12 @@
 loaded_files_log/*
 seat_prices/*
 seat_wise_prices/*
+seat_prices_with_DT/*
+seat_wise_prices_with_DT/*
 
 # But keep the directories themselves
 !loaded_files_log/
 !seat_prices/
 !seat_wise_prices/
+!seat_prices_with_DT/
+!seat_wise_prices_with_DT/

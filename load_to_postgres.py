@@ -7,6 +7,8 @@ from datetime import datetime
 # ----------------- CONFIG -----------------
 SEAT_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_prices"
 SEAT_WISE_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_wise_prices"
+SEAT_PRICES_WITH_DT_DIR = r"D:\Programming\DP-Dashboard\seat_prices_with_DT"
+SEAT_WISE_PRICES_WITH_DT_DIR = r"D:\Programming\DP-Dashboard\seat_wise_prices_with_DT"
 LOG_FILE = r"D:\Programming\DP-Dashboard\loaded_files_log\loaded_files.txt"
 DB_NAME = "dynamic_pricing_db"
 DB_USER = "postgres"
@@ -97,24 +99,34 @@ def drop_table_if_exists(conn, table_name):
         cur.close()
 
 def ensure_tables_exist_once(conn):
-    """Ensure both required tables exist with only expected columns plus our three timestamp columns"""
-
-    # Expected columns for each table type (these are the ONLY columns we want to keep from CSVs)
-    seat_prices_expected_cols = [
+    """Ensure all required tables exist with only expected columns plus our three timestamp columns"""
+    # Define expected columns for each table
+    seat_prices_columns = [
         "expected_occupancy", "actual_occupancy", "demand_index", "time_step_to_check", 
         "operator_id", "date_of_journey", "time_slot", "seat_type", "hours_before_departure", 
         "price", "origin", "destination", "actual_fare", "schedule_id", "coach_layout_id"
     ]
     
-    seat_wise_prices_expected_cols = [
+    seat_wise_prices_columns = [
         "schedule_id", "seat_number", "seat_type", "final_price", "actual_fare", 
         "coach_layout_id", "sales_count", "sales_percentage", "operator_reservation_id", 
         "travel_id", "origin_id", "destination_id", "travel_date", "op_origin", "op_destination"
     ]
     
+    # For the new tables with departure time (DT)
+    # Only seat_prices_with_dt has the Time of Journey (TOJ) column named 'departure_time'
+    seat_prices_with_dt_columns = seat_prices_columns.copy()
+    if "departure_time" not in seat_prices_with_dt_columns:
+        seat_prices_with_dt_columns.append("departure_time")
+        
+    # seat_wise_prices_with_dt doesn't have departure_time
+    seat_wise_prices_with_dt_columns = seat_wise_prices_columns.copy()
+    
     # Create tables with expected columns
-    create_table_with_expected_columns(conn, "seat_prices_raw", SEAT_PRICES_DIR, seat_prices_expected_cols)
-    create_table_with_expected_columns(conn, "seat_wise_prices_raw", SEAT_WISE_PRICES_DIR, seat_wise_prices_expected_cols)
+    create_table_with_expected_columns(conn, "seat_prices_raw", SEAT_PRICES_DIR, seat_prices_columns)
+    create_table_with_expected_columns(conn, "seat_wise_prices_raw", SEAT_WISE_PRICES_DIR, seat_wise_prices_columns)
+    create_table_with_expected_columns(conn, "seat_prices_with_dt", SEAT_PRICES_WITH_DT_DIR, seat_prices_with_dt_columns)
+    create_table_with_expected_columns(conn, "seat_wise_prices_with_dt", SEAT_WISE_PRICES_WITH_DT_DIR, seat_wise_prices_with_dt_columns)
 
 def create_table_with_expected_columns(conn, table_name, folder_path, expected_columns):
     """Create a table with only expected columns plus timestamp columns"""
@@ -180,12 +192,16 @@ def load_csv_files(folder, table_name, conn, already_loaded):
             "operator_id", "date_of_journey", "time_slot", "seat_type", "hours_before_departure", 
             "price", "origin", "destination", "actual_fare", "schedule_id", "coach_layout_id"
         ]
+        # Add departure_time for seat_prices_with_dt
+        if "with_dt" in table_name:
+            expected_columns.append("departure_time")
     else:  # seat_wise_prices
         expected_columns = [
             "schedule_id", "seat_number", "seat_type", "final_price", "actual_fare", 
             "coach_layout_id", "sales_count", "sales_percentage", "operator_reservation_id", 
             "travel_id", "origin_id", "destination_id", "travel_date", "op_origin", "op_destination"
         ]
+        # No departure_time for seat_wise_prices_with_dt
     
     # Make sure the tables have the required columns
     with conn.cursor() as prep_cur:
@@ -292,6 +308,21 @@ def refresh_views(conn):
         SELECT * FROM seat_wise_prices_raw
         ORDER BY "TimeAndDateStamp" DESC;
     """)
+    
+    # Views for the new tables with departure time
+    cur.execute("DROP VIEW IF EXISTS seat_prices_with_dt_latest;")
+    cur.execute("""
+        CREATE VIEW seat_prices_with_dt_latest AS
+        SELECT * FROM seat_prices_with_dt
+        ORDER BY "TimeAndDateStamp" DESC;
+    """)
+
+    cur.execute("DROP VIEW IF EXISTS seat_wise_prices_with_dt_latest;")
+    cur.execute("""
+        CREATE VIEW seat_wise_prices_with_dt_latest AS
+        SELECT * FROM seat_wise_prices_with_dt
+        ORDER BY "TimeAndDateStamp" DESC;
+    """)
 
     # 2. Reference views
 
@@ -360,7 +391,7 @@ def refresh_views(conn):
 # ----------------- MAIN SCRIPT -----------------
 def drop_existing_tables(conn):
     cur = conn.cursor()
-    for tbl in ["seat_prices_raw", "seat_wise_prices_raw"]:
+    for tbl in ["seat_prices_raw", "seat_wise_prices_raw", "seat_prices_with_dt", "seat_wise_prices_with_dt"]:
         cur.execute(f'DROP TABLE IF EXISTS {tbl} CASCADE;')
     conn.commit()
     cur.close()
@@ -370,12 +401,11 @@ def main():
     conn = get_connection()
     print("🔌 Connected to database successfully")
     
-
     # Read log of already loaded files
     already_loaded = read_log()
     print(f"📋 Found {len(already_loaded)} already loaded files in log")
     
-    # Ensure both tables exist once at the beginning
+    # Ensure all tables exist once at the beginning
     print("🛠️ Ensuring tables with proper schema...")
     ensure_tables_exist_once(conn)
 
@@ -384,10 +414,17 @@ def main():
     new_seat_files = load_csv_files(SEAT_PRICES_DIR, "seat_prices_raw", conn, already_loaded)
     print(f"📂 Checking for new files in {SEAT_WISE_PRICES_DIR}...")
     new_wise_files = load_csv_files(SEAT_WISE_PRICES_DIR, "seat_wise_prices_raw", conn, already_loaded)
+    
+    # Load new files from the new directories with departure time
+    print(f"📂 Checking for new files in {SEAT_PRICES_WITH_DT_DIR}...")
+    new_seat_dt_files = load_csv_files(SEAT_PRICES_WITH_DT_DIR, "seat_prices_with_dt", conn, already_loaded)
+    print(f"📂 Checking for new files in {SEAT_WISE_PRICES_WITH_DT_DIR}...")
+    new_wise_dt_files = load_csv_files(SEAT_WISE_PRICES_WITH_DT_DIR, "seat_wise_prices_with_dt", conn, already_loaded)
 
     # Update log and refresh views if new files were loaded
-    all_new_files = new_seat_files + new_wise_files
-    print(f"📊 Found {len(new_seat_files)} new seat_prices files and {len(new_wise_files)} new seat_wise_prices files")
+    all_new_files = new_seat_files + new_wise_files + new_seat_dt_files + new_wise_dt_files
+    print(f"📊 Found {len(new_seat_files)} new seat_prices files, {len(new_wise_files)} new seat_wise_prices files, ")
+    print(f"📊 Found {len(new_seat_dt_files)} new seat_prices_with_dt files, and {len(new_wise_dt_files)} new seat_wise_prices_with_dt files")
     
     if all_new_files:
         update_log(all_new_files)
