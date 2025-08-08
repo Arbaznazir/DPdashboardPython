@@ -424,37 +424,59 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                 dbc.Card(
                     dbc.CardBody([
                         html.H5(f"{model_operator_name} Price", className="card-title"),
-                        html.H3(f"${model_total:.2f}", className="card-text text-info"),
+                        html.H3(f"${model_total:.2f}", 
+                               style={'font-weight': 'bold', 'color': '#00ffff'}),
                         html.P("Sum of model prices", className="card-text text-muted")
                     ]),
-                    className="shadow-sm mb-4 bg-dark text-white"
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': '4px solid #00ffff'}
                 )
-            ], width=4),
+            ], width=3),
             
             # Actual Price
             dbc.Col([
                 dbc.Card(
                     dbc.CardBody([
-                        html.H5(f"{actual_operator_name} Price", className="card-title"),
-                        html.H3(f"${actual_total:.2f}", className="card-text text-warning"),
-                        html.P("Sum of actual prices", className="card-text text-muted")
+                        html.H5(f"{actual_operator_name} Historic Price", className="card-title"),
+                        html.H3(f"${actual_total:.2f}", className="card-text text-warning", 
+                               style={'font-weight': 'bold'}),
+                        html.P("Sum of historic prices", className="card-text text-muted")
                     ]),
-                    className="shadow-sm mb-4 bg-dark text-white"
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': '4px solid #ffc107'}
                 )
-            ], width=4),
+            ], width=3),
             
             # Price Difference
             dbc.Col([
                 dbc.Card(
                     dbc.CardBody([
                         html.H5("Price Difference", className="card-title"),
-                        html.H3(f"${price_diff_abs:.2f}", className=f"card-text text-{price_diff_color}"),
-                        html.P(f"{'Model > Actual' if model_total > actual_total else 'Actual > Model'}", 
-                               className="card-text text-muted")
+                        html.H3(f"${price_diff_abs:.2f}", 
+                               className=f"card-text text-{'success' if model_total > actual_total else 'danger'}",
+                               style={'font-weight': 'bold'}),
+                        html.P("Model - Historic", className="card-text text-muted")
                     ]),
-                    className="shadow-sm mb-4 bg-dark text-white"
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': f"4px solid {'#28a745' if model_total > actual_total else '#dc3545'}"}
                 )
-            ], width=4)
+            ], width=3),
+            
+            # Win/Lose Status
+            dbc.Col([
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5("Status", className="card-title"),
+                        html.H3("WIN" if model_total < actual_total else "LOSE", 
+                               className=f"card-text text-{'success' if model_total < actual_total else 'danger'}",
+                               style={'font-weight': 'bold', 'font-size': '2rem', 'text-align': 'center'}),
+                        html.P("Model vs Historic", className="card-text text-muted")
+                    ]),
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': f"4px solid {'#28a745' if model_total < actual_total else '#dc3545'}",
+                           'background': f"linear-gradient(to right, {'rgba(40,167,69,0.2)' if model_total < actual_total else 'rgba(220,53,69,0.2)'}, transparent)"}
+                )
+            ], width=3)
         ]),
         
         # Second row - Seat-wise Prices
@@ -463,46 +485,79 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
             dbc.Col([
                 dbc.Card(
                     dbc.CardBody([
-                        html.H5(f"{model_operator_name} Seat-wise", className="card-title"),
-                        html.H3(f"${model_seat_wise_total:.2f}", className="card-text text-info"),
-                        html.P("Sum of model seat-wise prices", className="card-text text-muted")
+                        html.H5("Model Seat-wise", className="card-title"),
+                        html.H3(f"${model_seat_wise_total:.2f}", 
+                               style={'font-weight': 'bold', 'color': '#00ffff'}),
+                        html.P("Sum of model seat prices", className="card-text text-muted")
                     ]),
-                    className="shadow-sm mb-4 bg-dark text-white"
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': '4px solid #00ffff'}
                 )
-            ], width=4),
+            ], width=3),
             
             # Actual Seat-wise Price
             dbc.Col([
                 dbc.Card(
                     dbc.CardBody([
-                        html.H5(f"{actual_operator_name} Seat-wise", className="card-title"),
-                        html.H3(f"${actual_seat_wise_total:.2f}", className="card-text text-warning"),
-                        html.P("Sum of actual seat-wise prices", className="card-text text-muted")
+                        html.H5("Historic Seat-wise", className="card-title"),
+                        html.H3(f"${actual_seat_wise_total:.2f}", className="card-text text-warning", 
+                               style={'font-weight': 'bold'}),
+                        html.P("Sum of historic seat prices", className="card-text text-muted")
                     ]),
-                    className="shadow-sm mb-4 bg-dark text-white"
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': '4px solid #ffc107'}
                 )
-            ], width=4),
+            ], width=3),
             
             # Seat-wise Price Difference
             dbc.Col([
                 dbc.Card(
                     dbc.CardBody([
                         html.H5("Seat-wise Difference", className="card-title"),
-                        html.H3(f"${seat_wise_diff_abs:.2f}", className=f"card-text text-{seat_wise_diff_color}"),
-                        html.P(f"{'Model > Actual' if model_seat_wise_total > actual_seat_wise_total else 'Actual > Model'}", 
-                               className="card-text text-muted")
+                        html.H3(f"${seat_wise_diff_abs:.2f}", 
+                               className=f"card-text text-{'success' if model_seat_wise_total > actual_seat_wise_total else 'danger'}",
+                               style={'font-weight': 'bold'}),
+                        html.P("Model - Historic", className="card-text text-muted")
                     ]),
-                    className="shadow-sm mb-4 bg-dark text-white"
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': f"4px solid {'#28a745' if model_seat_wise_total > actual_seat_wise_total else '#dc3545'}"}
                 )
-            ], width=4)
+            ], width=3),
+            
+            # Seat-wise Win/Lose Status
+            dbc.Col([
+                dbc.Card(
+                    dbc.CardBody([
+                        html.H5("Status", className="card-title"),
+                        html.H3("WIN" if model_seat_wise_total < actual_seat_wise_total else "LOSE", 
+                               className=f"card-text text-{'success' if model_seat_wise_total < actual_seat_wise_total else 'danger'}",
+                               style={'font-weight': 'bold', 'font-size': '2rem', 'text-align': 'center'}),
+                        html.P("Model vs Historic", className="card-text text-muted")
+                    ]),
+                    className="shadow-sm mb-4 bg-dark text-white",
+                    style={'border-left': f"4px solid {'#28a745' if model_seat_wise_total < actual_seat_wise_total else '#dc3545'}",
+                           'background': f"linear-gradient(to right, {'rgba(40,167,69,0.2)' if model_seat_wise_total < actual_seat_wise_total else 'rgba(220,53,69,0.2)'}, transparent)"}
+                )
+            ], width=3)
         ]),
         
-        # Details tables
-        html.H4("Detailed Price Comparison", className="mt-4 mb-3"),
+        # Toggle button for details
+        html.Div([
+            dbc.Button(
+                "Show/Hide Details", 
+                id="toggle-details-button",
+                color="secondary",
+                className="mb-3"
+            ),
+        ], className="text-center mt-4"),
         
-        # Seat Type Prices
-        html.H5("Prices by Seat Type", className="mt-4 mb-3"),
-        dbc.Row([
+        # Details tables - initially hidden
+        html.Div([
+            html.H4("Detailed Price Comparison", className="mt-4 mb-3"),
+            
+            # Seat Type Prices
+            html.H5("Prices by Seat Type", className="mt-4 mb-3"),
+            dbc.Row([
             # Model prices table
             dbc.Col([
                 html.H5(f"{model_operator_name} Prices by Seat Type"),
@@ -552,11 +607,11 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                     }
                 )
             ], width=6)
-        ]),
-        
-        # Seat-wise Prices
-        html.H5("Seat-wise Prices", className="mt-4 mb-3"),
-        dbc.Row([
+            ]),
+            
+            # Seat-wise Prices
+            html.H5("Seat-wise Prices", className="mt-4 mb-3"),
+            dbc.Row([
             # Model seat-wise prices table
             dbc.Col([
                 html.H5(f"{model_operator_name} Seat-wise Prices"),
@@ -571,12 +626,12 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                     data=model_seat_wise.to_dict('records'),
                     style_table={'overflowX': 'auto'},
                     style_cell={
-                        'backgroundColor': '#1e1e2f',
+                        'backgroundColor': '#343a40',
                         'color': 'white',
                         'textAlign': 'left'
                     },
                     style_header={
-                        'backgroundColor': '#252538',
+                        'backgroundColor': '#212529',
                         'fontWeight': 'bold'
                     }
                 )
@@ -590,27 +645,47 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                     columns=[
                         {"name": "Seat Number", "id": "seat_number"},
                         {"name": "Seat Type", "id": "seat_type"},
-                        {"name": "Actual Fare", "id": "final_price", "type": "numeric", "format": {"specifier": "$.2f"}},
+                        {"name": "Actual Fare", "id": "actual_fare", "type": "numeric", "format": {"specifier": "$.2f"}},
                         {"name": "Schedule ID", "id": "schedule_id"}
                     ],
                     data=actual_seat_wise.to_dict('records'),
                     style_table={'overflowX': 'auto'},
                     style_cell={
-                        'backgroundColor': '#1e1e2f',
+                        'backgroundColor': '#343a40',
                         'color': 'white',
                         'textAlign': 'left'
                     },
                     style_header={
-                        'backgroundColor': '#252538',
+                        'backgroundColor': '#212529',
                         'fontWeight': 'bold'
                     }
                 )
             ], width=6)
-        ])
+            ])
+        ], id="details-container")
     ])
 
 def register_price_comparison_callbacks(app):
     """Register callbacks for price comparison page"""
+    
+    # Toggle details visibility
+    @app.callback(
+        Output('details-container', 'style'),
+        Input('toggle-details-button', 'n_clicks'),
+        State('details-container', 'style')
+    )
+    def toggle_details(n_clicks, current_style):
+        if n_clicks is None:
+            # Initial load - hide details
+            return {'display': 'none'}
+        
+        if current_style is None or 'display' not in current_style:
+            current_style = {}
+        
+        if current_style.get('display') == 'none':
+            return {'display': 'block'}
+        else:
+            return {'display': 'none'}
     
     # Update actual operator dropdown based on model operator selection
     @app.callback(

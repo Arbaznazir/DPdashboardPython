@@ -186,6 +186,65 @@ app.index_string = '''
                 background-color: rgba(245, 101, 101, 0.15);
             }
             
+            .bg-warning-subtle {
+                background-color: rgba(236, 201, 75, 0.15);
+            }
+            
+            /* Custom navbar styling */
+            .navbar-custom {
+                box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14), 0 7px 12px -5px rgba(0, 0, 0, 0.46) !important;
+            }
+            
+            .nav-link-custom {
+                border-radius: 4px;
+                margin: 0 5px;
+                transition: all 0.3s ease;
+                position: relative;
+            }
+            
+            .nav-link-custom:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+                transform: translateY(-2px);
+            }
+            
+            .nav-link-custom.active {
+                background-color: rgba(0, 123, 255, 0.25);
+                box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14), 0 7px 10px -5px rgba(0, 123, 255, 0.4);
+            }
+            
+            .nav-link-custom::after {
+                content: '';
+                position: absolute;
+                width: 0;
+                height: 2px;
+                bottom: 0;
+                left: 50%;
+                background-color: #5e72e4;
+                transition: all 0.3s ease;
+            }
+            
+            .nav-link-custom:hover::after {
+                width: 80%;
+                left: 10%;
+            }
+            
+            /* Logo container with clean styling */
+            .logo-container {
+                position: relative;
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .logo-container:hover {
+                transform: scale(1.05);
+            }
+            
+            .logo-container img {
+                transition: all 0.3s ease;
+            }
+            
             .card-header-gradient {
                 background: linear-gradient(87deg, #172b4d, #1a174d);
             }
@@ -202,24 +261,73 @@ app.index_string = '''
 </html>
 '''
 
-# Create a navigation bar
+# Create a navigation bar with enhanced styling and centered Kupos logo
 navbar = dbc.Navbar(
     dbc.Container(
         [
-            dbc.NavbarBrand("Dynamic Pricing Dashboard", className="ml-2"),
+            # Left side - Brand name
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span("Dynamic", className="font-weight-bold"),
+                            html.Span(" Pricing", className="text-info font-weight-light")
+                        ],
+                        className="d-inline-block align-middle"
+                    )
+                ],
+                className="d-flex align-items-center"
+            ),
+            
+            # Center - Logo
+            html.Div(
+                [
+                    # Logo image with glow effect
+                    html.Div(
+                        html.Img(
+                            src="/assets/kupos.png",
+                            height="45px",
+                            className="d-inline-block"
+                        ),
+                        className="logo-container"
+                    ),
+                ],
+                className="position-absolute w-100 d-flex justify-content-center",
+                style={"left": "0", "top": "50%", "transform": "translateY(-50%)", "zIndex": "1000"}
+            ),
+            
+            # Right side - Navigation links
             dbc.Nav(
                 [
-                    dbc.NavItem(dbc.NavLink("Dashboard", href="/", id="dashboard-link")),
-                    dbc.NavItem(dbc.NavLink("Price Comparison", href="/price-difference", id="price-comparison-link")),
+                    dbc.NavItem(dbc.NavLink(
+                        [html.I(className="fas fa-chart-line mr-1"), " Dashboard"], 
+                        href="/", 
+                        id="dashboard-link",
+                        className="px-3 nav-link-custom"
+                    )),
+                    dbc.NavItem(dbc.NavLink(
+                        [html.I(className="fas fa-exchange-alt mr-1"), " Price Comparison"], 
+                        href="/price-difference", 
+                        id="price-comparison-link",
+                        className="px-3 nav-link-custom"
+                    )),
                 ],
                 className="ml-auto",
                 navbar=True,
             ),
-        ]
+        ],
+        fluid=True,  # Make container fluid for better spacing
+        className="position-relative"  # Required for absolute positioning of logo
     ),
     color="dark",
     dark=True,
-    className="mb-4",
+    className="mb-4 shadow-lg navbar-custom py-2",  # Added more padding and stronger shadow
+    style={
+        'background': 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)',  # Enhanced gradient
+        'border-bottom': '1px solid rgba(255,255,255,0.15)',
+        'position': 'relative',
+        'overflow': 'visible'
+    }
 )
 
 # Define the dashboard layout
