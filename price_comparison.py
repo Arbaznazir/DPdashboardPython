@@ -219,7 +219,7 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
     SELECT 
         swp.seat_number,
         swp.seat_type,
-        swp.final_price,  -- For dynamic pricing model operator, use final_price column
+        swp.final_price,
         swp.schedule_id
     FROM seat_wise_prices_with_dt swp
     JOIN latest_snapshots ls 
@@ -586,7 +586,7 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                     columns=[
                         {"name": "Seat Number", "id": "seat_number"},
                         {"name": "Seat Type", "id": "seat_type"},
-                        {"name": "Actual Fare", "id": "actual_fare", "type": "numeric", "format": {"specifier": "$.2f"}},
+                        {"name": "Actual Fare", "id": "final_price", "type": "numeric", "format": {"specifier": "$.2f"}},
                         {"name": "Schedule ID", "id": "schedule_id"}
                     ],
                     data=actual_seat_wise.to_dict('records'),
