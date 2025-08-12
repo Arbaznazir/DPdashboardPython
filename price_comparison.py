@@ -457,7 +457,7 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                     className="shadow-sm mb-4 bg-dark text-white",
                     style={'border-left': '4px solid #00ffff'}
                 )
-            ], width=4),
+            ], width=6),
             
             # Actual Price
             dbc.Col([
@@ -478,22 +478,7 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                     className="shadow-sm mb-4 bg-dark text-white",
                     style={'border-left': '4px solid #ffc107'}
                 )
-            ], width=4),
-            
-            # Price Difference
-            dbc.Col([
-                dbc.Card(
-                    dbc.CardBody([
-                        html.H5("Price Difference", className="card-title"),
-                        html.H3(f"${price_diff_abs:.2f}", 
-                               className=f"card-text text-{'success' if model_total > actual_total else 'danger'}",
-                               style={'font-weight': 'bold'}),
-                        html.P("Model - Historic", className="card-text text-muted")
-                    ]),
-                    className="shadow-sm mb-4 bg-dark text-white",
-                    style={'border-left': f"4px solid {'#28a745' if model_total > actual_total else '#dc3545'}"}
-                )
-            ], width=4)
+            ], width=6)
         ]),
         
         
