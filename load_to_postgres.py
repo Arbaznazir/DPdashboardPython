@@ -7,8 +7,8 @@ from datetime import datetime
 # ----------------- CONFIG -----------------
 SEAT_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_prices"
 SEAT_WISE_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_wise_prices"
-SEAT_PRICES_WITH_DT_DIR = r"D:\Programming\DP-Dashboard\seat_prices_with_DT"
-SEAT_WISE_PRICES_WITH_DT_DIR = r"D:\Programming\DP-Dashboard\seat_wise_prices_with_DT"
+SEAT_PRICES_WITH_DT_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_prices_with_DT"
+SEAT_WISE_PRICES_WITH_DT_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_wise_prices_with_DT"
 LOG_FILE = r"D:\Programming\DP-Dashboard\loaded_files_log\loaded_files.txt"
 DB_NAME = "dynamic_pricing_db"
 DB_USER = "postgres"
@@ -17,11 +17,14 @@ DB_HOST = "localhost"
 DB_PORT = "5432"
 
 # ------------- UTILITY FUNCTIONS -------------
+
+
 def get_connection():
     return psycopg2.connect(
         dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD,
         host=DB_HOST, port=DB_PORT
     )
+
 
 def ensure_table_exists(conn, table_name, sample_df):
     cur = conn.cursor()
@@ -49,7 +52,6 @@ def ensure_table_exists(conn, table_name, sample_df):
     cur.close()
     print(f"🛠️ Ensured table exists: {table_name}")
 
-import os
 
 def extract_timestamp_from_filename(filename, table_type):
     """Extract timestamp from filename and format as:
@@ -62,14 +64,17 @@ def extract_timestamp_from_filename(filename, table_type):
 
         # Remove prefix and .csv
         if table_type == "seat_prices":
-            timestamp_str = basename.replace("seat_prices_", "").replace(".csv", "")
+            timestamp_str = basename.replace(
+                "seat_prices_", "").replace(".csv", "")
         elif table_type == "seat_wise_prices":
-            timestamp_str = basename.replace("seat_wise_prices_", "").replace(".csv", "")
+            timestamp_str = basename.replace(
+                "seat_wise_prices_", "").replace(".csv", "")
         else:
             raise ValueError("Unknown table_type")
 
         # Split date and time
-        date_part, time_part = timestamp_str.split("_")  # '2025-07-31', '08-00'
+        date_part, time_part = timestamp_str.split(
+            "_")  # '2025-07-31', '08-00'
 
         # Convert to required formats
         year, month, day = date_part.split("-")
@@ -85,6 +90,7 @@ def extract_timestamp_from_filename(filename, table_type):
         print(f"⚠️ Error parsing timestamp from {filename}: {e}")
         return None, None, None
 
+
 def drop_table_if_exists(conn, table_name):
     """Drop a table if it exists"""
     cur = conn.cursor()
@@ -98,40 +104,46 @@ def drop_table_if_exists(conn, table_name):
     finally:
         cur.close()
 
+
 def ensure_tables_exist_once(conn):
     """Ensure all required tables exist with only expected columns plus our three timestamp columns"""
     # Define expected columns for each table
     seat_prices_columns = [
-        "expected_occupancy", "actual_occupancy", "demand_index", "time_step_to_check", 
-        "operator_id", "date_of_journey", "time_slot", "seat_type", "hours_before_departure", 
+        "expected_occupancy", "actual_occupancy", "demand_index", "time_step_to_check",
+        "operator_id", "date_of_journey", "time_slot", "seat_type", "hours_before_departure",
         "price", "origin", "destination", "actual_fare", "schedule_id", "coach_layout_id"
     ]
-    
+
     seat_wise_prices_columns = [
-        "schedule_id", "seat_number", "seat_type", "final_price", "actual_fare", 
-        "coach_layout_id", "sales_count", "sales_percentage", "operator_reservation_id", 
+        "schedule_id", "seat_number", "seat_type", "final_price", "actual_fare",
+        "coach_layout_id", "sales_count", "sales_percentage", "operator_reservation_id",
         "travel_id", "origin_id", "destination_id", "travel_date", "op_origin", "op_destination"
     ]
-    
+
     # For the new tables with departure time (DT)
     # Only seat_prices_with_dt has the Time of Journey (TOJ) column named 'departure_time'
     seat_prices_with_dt_columns = seat_prices_columns.copy()
     if "departure_time" not in seat_prices_with_dt_columns:
         seat_prices_with_dt_columns.append("departure_time")
-        
+
     # seat_wise_prices_with_dt doesn't have departure_time
     seat_wise_prices_with_dt_columns = seat_wise_prices_columns.copy()
-    
+
     # Create tables with expected columns
-    create_table_with_expected_columns(conn, "seat_prices_raw", SEAT_PRICES_DIR, seat_prices_columns)
-    create_table_with_expected_columns(conn, "seat_wise_prices_raw", SEAT_WISE_PRICES_DIR, seat_wise_prices_columns)
-    create_table_with_expected_columns(conn, "seat_prices_with_dt", SEAT_PRICES_WITH_DT_DIR, seat_prices_with_dt_columns)
-    create_table_with_expected_columns(conn, "seat_wise_prices_with_dt", SEAT_WISE_PRICES_WITH_DT_DIR, seat_wise_prices_with_dt_columns)
+    create_table_with_expected_columns(
+        conn, "seat_prices_raw", SEAT_PRICES_DIR, seat_prices_columns)
+    create_table_with_expected_columns(
+        conn, "seat_wise_prices_raw", SEAT_WISE_PRICES_DIR, seat_wise_prices_columns)
+    create_table_with_expected_columns(
+        conn, "seat_prices_with_dt", SEAT_PRICES_WITH_DT_DIR, seat_prices_with_dt_columns)
+    create_table_with_expected_columns(
+        conn, "seat_wise_prices_with_dt", SEAT_WISE_PRICES_WITH_DT_DIR, seat_wise_prices_with_dt_columns)
+
 
 def create_table_with_expected_columns(conn, table_name, folder_path, expected_columns):
     """Create a table with only expected columns plus timestamp columns"""
     cur = conn.cursor()
-    
+
     # Find a sample CSV file to get column structure
     if os.path.exists(folder_path) and os.listdir(folder_path):
         sample_file = None
@@ -139,12 +151,13 @@ def create_table_with_expected_columns(conn, table_name, folder_path, expected_c
             if filename.endswith('.csv'):
                 sample_file = os.path.join(folder_path, filename)
                 break
-                
+
         if sample_file:
             # Create table with expected columns
-            columns_sql = ", ".join([f'"{col}" TEXT' for col in expected_columns])
+            columns_sql = ", ".join(
+                [f'"{col}" TEXT' for col in expected_columns])
             columns_sql += ', "SnapshotDate" TEXT, "SnapshotTime" TEXT, "TimeAndDateStamp" TEXT'
-            
+
             try:
                 cur.execute(f"CREATE TABLE {table_name} ({columns_sql});")
                 conn.commit()
@@ -156,8 +169,9 @@ def create_table_with_expected_columns(conn, table_name, folder_path, expected_c
             print(f"⚠️ No CSV files found in {folder_path}")
     else:
         print(f"⚠️ Directory {folder_path} does not exist or is empty")
-    
+
     cur.close()
+
 
 def add_missing_columns(conn, table_name, df):
     cur = conn.cursor()
@@ -179,17 +193,18 @@ def add_missing_columns(conn, table_name, df):
     conn.commit()
     cur.close()
 
+
 def load_csv_files(folder, table_name, conn, already_loaded):
     """Load CSV files from folder into database table"""
     new_files = []
     # Only create one cursor for the whole function
     table_type = "seat_prices" if "seat_prices" in table_name else "seat_wise_prices"
-    
+
     # Define expected columns for each table type
     if table_type == "seat_prices":
         expected_columns = [
-            "expected_occupancy", "actual_occupancy", "demand_index", "time_step_to_check", 
-            "operator_id", "date_of_journey", "time_slot", "seat_type", "hours_before_departure", 
+            "expected_occupancy", "actual_occupancy", "demand_index", "time_step_to_check",
+            "operator_id", "date_of_journey", "time_slot", "seat_type", "hours_before_departure",
             "price", "origin", "destination", "actual_fare", "schedule_id", "coach_layout_id"
         ]
         # Add departure_time for seat_prices_with_dt
@@ -197,76 +212,80 @@ def load_csv_files(folder, table_name, conn, already_loaded):
             expected_columns.append("departure_time")
     else:  # seat_wise_prices
         expected_columns = [
-            "schedule_id", "seat_number", "seat_type", "final_price", "actual_fare", 
-            "coach_layout_id", "sales_count", "sales_percentage", "operator_reservation_id", 
+            "schedule_id", "seat_number", "seat_type", "final_price", "actual_fare",
+            "coach_layout_id", "sales_count", "sales_percentage", "operator_reservation_id",
             "travel_id", "origin_id", "destination_id", "travel_date", "op_origin", "op_destination"
         ]
         # No departure_time for seat_wise_prices_with_dt
-    
+
     # Make sure the tables have the required columns
     with conn.cursor() as prep_cur:
         for column_name in ["SnapshotDate", "SnapshotTime", "TimeAndDateStamp"]:
             try:
-                prep_cur.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS \"{column_name}\" TEXT;")
+                prep_cur.execute(
+                    f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS \"{column_name}\" TEXT;")
             except Exception as e:
                 print(f"Error ensuring column {column_name}: {e}")
         conn.commit()
-    
+
     # Get column info once before processing files
     all_columns = set()
     with conn.cursor() as info_cur:
-        info_cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'")
+        info_cur.execute(
+            f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'")
         for col in info_cur.fetchall():
             all_columns.add(col[0].lower())
-    
+
     # Process each file
     for filename in sorted(os.listdir(folder)):
         if filename.endswith(".csv") and filename not in already_loaded:
             file_path = os.path.join(folder, filename)
             print(f"📥 Loading {filename} into {table_name}...")
-            
+
             # Read CSV file
             df = pd.read_csv(file_path)
             df.columns = df.columns.str.strip()
-            
+
             # Filter to keep only expected columns (case insensitive)
             col_mapping = {col.lower(): col for col in df.columns}
             columns_to_keep = []
             for expected_col in expected_columns:
                 if expected_col.lower() in col_mapping:
                     columns_to_keep.append(col_mapping[expected_col.lower()])
-            
+
             # Keep only expected columns
             df = df[columns_to_keep]
-            
+
             # Extract timestamp from filename using updated format
-            snapshot_date, snapshot_time, time_and_date_stamp = extract_timestamp_from_filename(filename, table_type)
-            
+            snapshot_date, snapshot_time, time_and_date_stamp = extract_timestamp_from_filename(
+                filename, table_type)
+
             # Add timestamp columns to dataframe
             if snapshot_date and snapshot_time and time_and_date_stamp:
                 df['SnapshotDate'] = snapshot_date
                 df['SnapshotTime'] = snapshot_time
                 df['TimeAndDateStamp'] = time_and_date_stamp
-                
+
             # Filter columns that exist in the table
             columns_to_use = []
             for col in df.columns:
                 if col.lower() in all_columns:
                     columns_to_use.append(col)
-                    
+
             # Prepare for insert using only columns that exist in the table
             if not columns_to_use:
                 print(f"⚠️ No matching columns found for {table_name}!")
                 continue
-                
+
             # Insert data into table - use a new cursor for each file
             with conn.cursor() as insert_cur:
                 placeholder = ', '.join(['%s'] * len(columns_to_use))
                 columns = ', '.join(f'"{col}"' for col in columns_to_use)
                 insert_query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholder})"
-                
+
                 for _, row in df.iterrows():
-                    values = tuple(None if pd.isna(value) else value for value in row[columns_to_use])
+                    values = tuple(None if pd.isna(value)
+                                   else value for value in row[columns_to_use])
                     try:
                         insert_cur.execute(insert_query, values)
                     except Exception as e:
@@ -274,12 +293,13 @@ def load_csv_files(folder, table_name, conn, already_loaded):
                         print(f"Query was: {insert_query}")
                         conn.rollback()
                         break
-            
+
             # Commit after each file
             conn.commit()
             new_files.append(filename)
-            
+
     return new_files
+
 
 def read_log():
     if not os.path.exists(LOG_FILE):
@@ -287,10 +307,12 @@ def read_log():
     with open(LOG_FILE, "r") as f:
         return set(f.read().splitlines())
 
+
 def update_log(new_files):
     with open(LOG_FILE, "a") as f:
         for file in new_files:
             f.write(file + "\n")
+
 
 def refresh_views(conn):
     cur = conn.cursor()
@@ -308,7 +330,7 @@ def refresh_views(conn):
         SELECT * FROM seat_wise_prices_raw
         ORDER BY "TimeAndDateStamp" DESC;
     """)
-    
+
     # Views for the new tables with departure time
     cur.execute("DROP VIEW IF EXISTS seat_prices_with_dt_latest;")
     cur.execute("""
@@ -389,6 +411,8 @@ def refresh_views(conn):
     print("🔁 Views refreshed.")
 
 # ----------------- MAIN SCRIPT -----------------
+
+
 def drop_existing_tables(conn):
     cur = conn.cursor()
     for tbl in ["seat_prices_raw", "seat_wise_prices_raw", "seat_prices_with_dt", "seat_wise_prices_with_dt"]:
@@ -400,32 +424,38 @@ def drop_existing_tables(conn):
 def main():
     conn = get_connection()
     print("🔌 Connected to database successfully")
-    
+
     # Read log of already loaded files
     already_loaded = read_log()
     print(f"📋 Found {len(already_loaded)} already loaded files in log")
-    
+
     # Ensure all tables exist once at the beginning
     print("🛠️ Ensuring tables with proper schema...")
     ensure_tables_exist_once(conn)
 
     # Load new files from each directory
     print(f"📂 Checking for new files in {SEAT_PRICES_DIR}...")
-    new_seat_files = load_csv_files(SEAT_PRICES_DIR, "seat_prices_raw", conn, already_loaded)
+    new_seat_files = load_csv_files(
+        SEAT_PRICES_DIR, "seat_prices_raw", conn, already_loaded)
     print(f"📂 Checking for new files in {SEAT_WISE_PRICES_DIR}...")
-    new_wise_files = load_csv_files(SEAT_WISE_PRICES_DIR, "seat_wise_prices_raw", conn, already_loaded)
-    
+    new_wise_files = load_csv_files(
+        SEAT_WISE_PRICES_DIR, "seat_wise_prices_raw", conn, already_loaded)
+
     # Load new files from the new directories with departure time
     print(f"📂 Checking for new files in {SEAT_PRICES_WITH_DT_DIR}...")
-    new_seat_dt_files = load_csv_files(SEAT_PRICES_WITH_DT_DIR, "seat_prices_with_dt", conn, already_loaded)
+    new_seat_dt_files = load_csv_files(
+        SEAT_PRICES_WITH_DT_DIR, "seat_prices_with_dt", conn, already_loaded)
     print(f"📂 Checking for new files in {SEAT_WISE_PRICES_WITH_DT_DIR}...")
-    new_wise_dt_files = load_csv_files(SEAT_WISE_PRICES_WITH_DT_DIR, "seat_wise_prices_with_dt", conn, already_loaded)
+    new_wise_dt_files = load_csv_files(
+        SEAT_WISE_PRICES_WITH_DT_DIR, "seat_wise_prices_with_dt", conn, already_loaded)
 
     # Update log and refresh views if new files were loaded
-    all_new_files = new_seat_files + new_wise_files + new_seat_dt_files + new_wise_dt_files
-    print(f"📊 Found {len(new_seat_files)} new seat_prices files, {len(new_wise_files)} new seat_wise_prices files, ")
+    all_new_files = new_seat_files + new_wise_files + \
+        new_seat_dt_files + new_wise_dt_files
+    print(
+        f"📊 Found {len(new_seat_files)} new seat_prices files, {len(new_wise_files)} new seat_wise_prices files, ")
     print(f"📊 Found {len(new_seat_dt_files)} new seat_prices_with_dt files, and {len(new_wise_dt_files)} new seat_wise_prices_with_dt files")
-    
+
     if all_new_files:
         update_log(all_new_files)
         print("🔄 Refreshing views...")
@@ -436,6 +466,7 @@ def main():
 
     conn.close()
     print("✅ All done.")
+
 
 if __name__ == "__main__":
     main()
