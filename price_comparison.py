@@ -150,7 +150,7 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
     # Get model prices from seat_prices_with_dt
     model_query = """
     WITH latest_prices AS (
-        SELECT DISTINCT ON (schedule_id, seat_type, hours_before_departure)
+        SELECT DISTINCT ON (schedule_id, seat_type)
             seat_type,
             price,  -- For dynamic pricing model operator, use price column
             hours_before_departure,
@@ -160,7 +160,7 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
         WHERE date_of_journey = %s
             AND operator_id = %s
             AND departure_time = %s
-        ORDER BY schedule_id, seat_type, hours_before_departure, "TimeAndDateStamp" DESC
+        ORDER BY schedule_id, seat_type, "TimeAndDateStamp" DESC
     )
     SELECT 
         seat_type,
@@ -175,7 +175,7 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
     # Get actual prices from seat_prices_with_dt
     actual_query = """
     WITH latest_prices AS (
-        SELECT DISTINCT ON (schedule_id, seat_type, hours_before_departure)
+        SELECT DISTINCT ON (schedule_id, seat_type)
             seat_type,
             actual_fare as price,  -- For non-dynamic pricing operator, use actual_fare column
             hours_before_departure,
@@ -185,7 +185,7 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
         WHERE date_of_journey = %s
             AND operator_id = %s
             AND departure_time = %s
-        ORDER BY schedule_id, seat_type, hours_before_departure, "TimeAndDateStamp" DESC
+        ORDER BY schedule_id, seat_type, "TimeAndDateStamp" DESC
     )
     SELECT 
         seat_type,
@@ -422,32 +422,13 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
         price_diff_abs = 0
         price_diff_color = "secondary"
     
-    # Calculate seat-wise totals
-    try:
-        # Ensure seat-wise price values are numeric before calculations
-        if model_seat_wise is not None and not model_seat_wise.empty:
-            model_seat_wise['final_price'] = pd.to_numeric(model_seat_wise['final_price'], errors='coerce')
-            model_seat_wise_total = model_seat_wise['final_price'].sum()
-        else:
-            model_seat_wise_total = 0
-            
-        if actual_seat_wise is not None and not actual_seat_wise.empty:
-            actual_seat_wise['final_price'] = pd.to_numeric(actual_seat_wise['final_price'], errors='coerce')
-            actual_seat_wise_total = actual_seat_wise['final_price'].sum()
-        else:
-            actual_seat_wise_total = 0
-            
-        print(f"Model seat-wise total: {model_seat_wise_total}, Actual seat-wise total: {actual_seat_wise_total}")
-        seat_wise_diff = actual_seat_wise_total - model_seat_wise_total
-        seat_wise_diff_abs = abs(seat_wise_diff)
-        seat_wise_diff_color = "success" if model_seat_wise_total > actual_seat_wise_total else "danger"
-    except Exception as e:
-        print(f"Error calculating seat-wise totals: {e}")
-        model_seat_wise_total = 0
-        actual_seat_wise_total = 0
-        seat_wise_diff = 0
-        seat_wise_diff_abs = 0
-        seat_wise_diff_color = "secondary"
+    # We still need seat-wise data for tables, but we're removing the KPI cards
+    # Process the data for tables
+    if model_seat_wise is not None and not model_seat_wise.empty:
+        model_seat_wise['final_price'] = pd.to_numeric(model_seat_wise['final_price'], errors='coerce')
+    
+    if actual_seat_wise is not None and not actual_seat_wise.empty:
+        actual_seat_wise['final_price'] = pd.to_numeric(actual_seat_wise['final_price'], errors='coerce')
     
     # Create KPI cards
     return html.Div([
