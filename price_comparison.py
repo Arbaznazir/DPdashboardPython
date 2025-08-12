@@ -395,29 +395,31 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
     origin_name = "Santiago" if origin_id == 1646 else "Other"
     destination_name = "La Serena" if destination_id == 1821 else "Other"
     
-    # Calculate price totals
+    # Process price data for display
     try:
-        # Ensure price values are numeric before calculations
+        # Ensure price values are numeric
         if model_prices is not None and not model_prices.empty:
             model_prices['price'] = pd.to_numeric(model_prices['price'], errors='coerce')
-            model_total = model_prices['price'].sum()
         else:
-            model_total = 0
+            model_prices = pd.DataFrame(columns=['seat_type', 'price'])
             
         if actual_prices is not None and not actual_prices.empty:
             actual_prices['price'] = pd.to_numeric(actual_prices['price'], errors='coerce')
-            actual_total = actual_prices['price'].sum()
         else:
-            actual_total = 0
+            actual_prices = pd.DataFrame(columns=['seat_type', 'price'])
             
-        print(f"Model total: {model_total}, Actual total: {actual_total}")
+        # Calculate price difference for comparison
+        model_total = model_prices['price'].sum() if not model_prices.empty else 0
+        actual_total = actual_prices['price'].sum() if not actual_prices.empty else 0
         price_diff = actual_total - model_total
         price_diff_abs = abs(price_diff)
         price_diff_color = "success" if model_total > actual_total else "danger"
+        
+        print(f"Model total: {model_total}, Actual total: {actual_total}")
     except Exception as e:
-        print(f"Error calculating price totals: {e}")
-        model_total = 0
-        actual_total = 0
+        print(f"Error processing price data: {e}")
+        model_prices = pd.DataFrame(columns=['seat_type', 'price'])
+        actual_prices = pd.DataFrame(columns=['seat_type', 'price'])
         price_diff = 0
         price_diff_abs = 0
         price_diff_color = "secondary"
@@ -442,9 +444,15 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                 dbc.Card(
                     dbc.CardBody([
                         html.H5(f"{model_operator_name} Price", className="card-title"),
-                        html.H3(f"${model_total:.2f}", 
-                               style={'font-weight': 'bold', 'color': '#00ffff'}),
-                        html.P("Sum of model prices", className="card-text text-muted")
+                        # Display prices for each seat type
+                        html.Div([
+                            html.Div([
+                                html.H6(row['seat_type'], className="mb-0"),
+                                html.H3(f"${row['price']:.2f}", 
+                                      style={'font-weight': 'bold', 'color': '#00ffff'})
+                            ]) for _, row in model_prices.iterrows()
+                        ]),
+                        html.P("Latest prices by seat type", className="card-text text-muted")
                     ]),
                     className="shadow-sm mb-4 bg-dark text-white",
                     style={'border-left': '4px solid #00ffff'}
@@ -456,9 +464,16 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
                 dbc.Card(
                     dbc.CardBody([
                         html.H5(f"{actual_operator_name} Historic Price", className="card-title"),
-                        html.H3(f"${actual_total:.2f}", className="card-text text-warning", 
-                               style={'font-weight': 'bold'}),
-                        html.P("Sum of historic prices", className="card-text text-muted")
+                        # Display prices for each seat type
+                        html.Div([
+                            html.Div([
+                                html.H6(row['seat_type'], className="mb-0"),
+                                html.H3(f"${row['price']:.2f}", 
+                                      className="card-text text-warning",
+                                      style={'font-weight': 'bold'})
+                            ]) for _, row in actual_prices.iterrows()
+                        ]),
+                        html.P("Latest prices by seat type", className="card-text text-muted")
                     ]),
                     className="shadow-sm mb-4 bg-dark text-white",
                     style={'border-left': '4px solid #ffc107'}
