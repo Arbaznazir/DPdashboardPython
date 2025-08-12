@@ -231,6 +231,11 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
     model_seat_wise_prices = execute_query(model_seat_wise_query, 
                                            params=(date_of_journey, str(model_operator_id), time_of_journey, date_of_journey))
     
+    # Sort by seat_number in ascending order
+    if model_seat_wise_prices is not None and not model_seat_wise_prices.empty:
+        model_seat_wise_prices['seat_number'] = pd.to_numeric(model_seat_wise_prices['seat_number'], errors='coerce')
+        model_seat_wise_prices = model_seat_wise_prices.sort_values('seat_number')
+    
     # Get actual seat-wise prices
     actual_seat_wise_query = """
     WITH relevant_schedules AS (
@@ -264,6 +269,11 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
     # Cast operator_id to string to match database column type
     actual_seat_wise_prices = execute_query(actual_seat_wise_query, 
                                             params=(date_of_journey, str(actual_operator_id), time_of_journey, date_of_journey))
+    
+    # Sort by seat_number in ascending order
+    if actual_seat_wise_prices is not None and not actual_seat_wise_prices.empty:
+        actual_seat_wise_prices['seat_number'] = pd.to_numeric(actual_seat_wise_prices['seat_number'], errors='coerce')
+        actual_seat_wise_prices = actual_seat_wise_prices.sort_values('seat_number')
     
     return {
         'model_prices': model_prices,
