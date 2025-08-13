@@ -95,7 +95,7 @@ def get_price_delta_data(schedule_id=None, operator_id=None, seat_type=None, hou
     return df
 
 def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
-    """Get occupancy data for charts - simplified version that directly gets data from seat_prices_raw"""
+    """Get occupancy data for charts - using partitioned table for better performance"""
     # Return empty DataFrame if no schedule_id is provided
     if schedule_id is None:
         return pd.DataFrame()
@@ -109,15 +109,15 @@ def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours
             "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
             "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy",
             "seat_type",
-            "TimeAndDateStamp"
+            "timeanddatestamp"
         FROM 
-            seat_prices_raw
+            seat_prices_raw_partitioned
         WHERE 
             "schedule_id" = %(schedule_id)s
             AND "actual_occupancy" IS NOT NULL
             AND "expected_occupancy" IS NOT NULL
         ORDER BY 
-            "seat_type", "hours_before_departure", "TimeAndDateStamp" DESC
+            "seat_type", "hours_before_departure", "timeanddatestamp" DESC
     )
     SELECT * FROM latest_snapshots
     ORDER BY "seat_type", "hours_before_departure" DESC
@@ -158,6 +158,7 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
     - Gets the latest snapshot for each hours before departure
     - Sums up actual_fare and final_price for all seats
     - Groups by seat_type if multiple seat types exist
+    - Uses partitioned tables for better performance
     """
     if not schedule_id:
         return pd.DataFrame()
@@ -171,14 +172,14 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
         WITH all_hours AS (
             -- Get all distinct hours before departure for this schedule
             SELECT DISTINCT "hours_before_departure"
-            FROM seat_prices_raw
+            FROM seat_prices_raw_partitioned
             WHERE "schedule_id" = %(schedule_id)s
             ORDER BY "hours_before_departure" DESC
         ),
         all_seat_types AS (
             -- Get all distinct seat types for this schedule
             SELECT DISTINCT "seat_type"
-            FROM seat_prices_raw
+            FROM seat_prices_raw_partitioned
             WHERE "schedule_id" = %(schedule_id)s
         ),
         latest_snapshots AS (
@@ -186,10 +187,10 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
             SELECT DISTINCT ON (sp."hours_before_departure", sp."seat_type") 
                 sp."hours_before_departure", 
                 sp."seat_type",
-                sp."TimeAndDateStamp"
-            FROM seat_prices_raw sp
+                sp."timeanddatestamp"
+            FROM seat_prices_raw_partitioned sp
             WHERE sp."schedule_id" = %(schedule_id)s
-            ORDER BY sp."hours_before_departure", sp."seat_type", sp."TimeAndDateStamp" DESC
+            ORDER BY sp."hours_before_departure", sp."seat_type", sp."timeanddatestamp" DESC
         ),
         latest_seat_data AS (
             -- Get the latest data for each seat number within each snapshot
@@ -200,12 +201,12 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
                 CAST(swp."actual_fare" AS NUMERIC) as "actual_fare",
                 CAST(swp."final_price" AS NUMERIC) as "final_price"
             FROM latest_snapshots ls
-            JOIN seat_wise_prices_raw swp 
-                ON swp."TimeAndDateStamp" = ls."TimeAndDateStamp" 
+            JOIN seat_wise_prices_raw_partitioned swp 
+                ON swp."timeanddatestamp" = ls."timeanddatestamp" 
                 AND swp."seat_type" = ls."seat_type"
                 AND swp."schedule_id" = %(schedule_id)s
             ORDER BY 
-                swp."seat_number", ls."hours_before_departure", ls."seat_type", swp."TimeAndDateStamp" DESC
+                swp."seat_number", ls."hours_before_departure", ls."seat_type", swp."timeanddatestamp" DESC
         )
         SELECT 
             "hours_before_departure",

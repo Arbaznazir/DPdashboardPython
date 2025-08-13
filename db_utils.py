@@ -53,10 +53,10 @@ def execute_query(query, params=None, fetch=True):
         return None
 
 def get_schedule_ids():
-    """Get unique schedule IDs from seat_prices_raw table"""
+    """Get unique schedule IDs from seat_prices_raw_partitioned table"""
     query = """
     SELECT DISTINCT "schedule_id" 
-    FROM seat_prices_raw
+    FROM seat_prices_raw_partitioned
     ORDER BY "schedule_id"
     """
     df = execute_query(query)
@@ -65,10 +65,10 @@ def get_schedule_ids():
     return []
 
 def get_operators():
-    """Get unique operators from seat_prices_raw table"""
+    """Get unique operators from seat_prices_raw_partitioned table"""
     query = """
     SELECT DISTINCT "operator_id" 
-    FROM seat_prices_raw
+    FROM seat_prices_raw_partitioned
     ORDER BY "operator_id"
     """
     df = execute_query(query)
@@ -77,10 +77,10 @@ def get_operators():
     return []
 
 def get_seat_types():
-    """Get unique seat types from seat_prices_raw table"""
+    """Get unique seat types from seat_prices_raw_partitioned table"""
     query = """
     SELECT DISTINCT "seat_type" 
-    FROM seat_prices_raw
+    FROM seat_prices_raw_partitioned
     ORDER BY "seat_type"
     """
     df = execute_query(query)
@@ -89,13 +89,13 @@ def get_seat_types():
     return []
 
 def get_seat_types_by_schedule_id(schedule_id):
-    """Get unique seat types for a specific schedule_id from seat_wise_prices_raw table"""
+    """Get unique seat types for a specific schedule_id from seat_wise_prices_raw_partitioned table"""
     if not schedule_id:
         return []
         
     query = """
     SELECT DISTINCT "seat_type" 
-    FROM seat_wise_prices_raw
+    FROM seat_wise_prices_raw_partitioned
     WHERE "schedule_id" = %(schedule_id)s
     ORDER BY "seat_type"
     """
