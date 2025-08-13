@@ -526,6 +526,62 @@ def create_price_comparison_kpi_cards(comparison_data, model_operator_name, actu
         html.Div([
             html.H4("Detailed Price Comparison", className="mt-4 mb-3"),
             
+            # Aggregate Statistics Section
+            html.Div([
+                html.H5("Aggregate Statistics", className="mt-3 mb-3"),
+                dbc.Row([
+                    # Model operator statistics
+                    dbc.Col([
+                        html.H6(f"{model_operator_name} Statistics", className="mb-3"),
+                        dbc.Card(
+                            dbc.CardBody([
+                                html.Div([
+                                    html.P("Seat Count:", className="mb-0 font-weight-bold"),
+                                    html.H5(f"{len(model_seat_wise) if model_seat_wise is not None and not model_seat_wise.empty else 0}", 
+                                           className="text-info")
+                                ], className="d-flex justify-content-between align-items-center mb-2"),
+                                html.Div([
+                                    html.P("Total Price:", className="mb-0 font-weight-bold"),
+                                    html.H5(f"${model_seat_wise['final_price'].sum():.2f}" if model_seat_wise is not None and not model_seat_wise.empty else "$0.00", 
+                                           className="text-success")
+                                ], className="d-flex justify-content-between align-items-center mb-2"),
+                                html.Div([
+                                    html.P("Average Price:", className="mb-0 font-weight-bold"),
+                                    html.H5(f"${model_seat_wise['final_price'].mean():.2f}" if model_seat_wise is not None and not model_seat_wise.empty and len(model_seat_wise) > 0 else "$0.00", 
+                                           className="text-warning")
+                                ], className="d-flex justify-content-between align-items-center")
+                            ]),
+                            className="bg-dark text-white"
+                        )
+                    ], width=6),
+                    
+                    # Actual operator statistics
+                    dbc.Col([
+                        html.H6(f"{actual_operator_name} Statistics", className="mb-3"),
+                        dbc.Card(
+                            dbc.CardBody([
+                                html.Div([
+                                    html.P("Seat Count:", className="mb-0 font-weight-bold"),
+                                    html.H5(f"{len(actual_seat_wise) if actual_seat_wise is not None and not actual_seat_wise.empty else 0}", 
+                                           className="text-info")
+                                ], className="d-flex justify-content-between align-items-center mb-2"),
+                                html.Div([
+                                    html.P("Total Price:", className="mb-0 font-weight-bold"),
+                                    html.H5(f"${actual_seat_wise['final_price'].sum():.2f}" if actual_seat_wise is not None and not actual_seat_wise.empty else "$0.00", 
+                                           className="text-success")
+                                ], className="d-flex justify-content-between align-items-center mb-2"),
+                                html.Div([
+                                    html.P("Average Price:", className="mb-0 font-weight-bold"),
+                                    html.H5(f"${actual_seat_wise['final_price'].mean():.2f}" if actual_seat_wise is not None and not actual_seat_wise.empty and len(actual_seat_wise) > 0 else "$0.00", 
+                                           className="text-warning")
+                                ], className="d-flex justify-content-between align-items-center")
+                            ]),
+                            className="bg-dark text-white"
+                        )
+                    ], width=6)
+                ]),
+            ], className="mb-4"),
+            
             # Seat Type Prices
             html.H5("Prices by Seat Type", className="mt-4 mb-3"),
             dbc.Row([
