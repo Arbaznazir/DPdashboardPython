@@ -4,6 +4,20 @@ import pandas as pd
 from psycopg2 import sql
 from datetime import datetime
 
+# Import apply_indexes function if the module exists
+try:
+    from apply_indexes import apply_indexes
+    INDEXES_MODULE_EXISTS = True
+except ImportError:
+    INDEXES_MODULE_EXISTS = False
+    
+# Import partitioning functions if the module exists
+try:
+    from db_partitioning import setup_partitioning, load_to_partitioned_tables
+    PARTITIONING_MODULE_EXISTS = True
+except ImportError:
+    PARTITIONING_MODULE_EXISTS = False
+
 # ----------------- CONFIG -----------------
 SEAT_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_prices"
 SEAT_WISE_PRICES_DIR = r"D:\Programming\dynamic-pricing-apis-master\dynamic-pricing-apis-master\output_csvs\OneDrive\seat_wise_prices"
@@ -195,10 +209,16 @@ def add_missing_columns(conn, table_name, df):
 
 
 def load_csv_files(folder, table_name, conn, already_loaded):
-    """Load CSV files from folder into database table"""
+    """Load CSV files from folder into database table and handle partitioning"""
     new_files = []
     # Only create one cursor for the whole function
     table_type = "seat_prices" if "seat_prices" in table_name else "seat_wise_prices"
+    
+    # Track if this is a table that needs partitioning
+    needs_partitioning = table_name in ["seat_prices_with_dt", "seat_wise_prices_with_dt"]
+    
+    # Track all loaded dataframes for partitioning
+    all_loaded_dfs = []
 
     # Define expected columns for each table type
     if table_type == "seat_prices":
@@ -292,12 +312,64 @@ def load_csv_files(folder, table_name, conn, already_loaded):
                         print(f"⚠️ Error inserting row: {e}")
                         print(f"Query was: {insert_query}")
                         conn.rollback()
-                        break
+                        
+            # If this table needs partitioning, store the dataframe for later processing
+            if needs_partitioning and not df.empty:
+                all_loaded_dfs.append(df.copy())
 
             # Commit after each file
             conn.commit()
             new_files.append(filename)
 
+    # Handle partitioning if needed and if we have data to partition
+    if needs_partitioning and all_loaded_dfs:
+        print(f"\n🔄 Processing partitioning for {table_name}...")
+        
+        # Combine all loaded dataframes
+        combined_df = pd.concat(all_loaded_dfs, ignore_index=True)
+        
+        if not combined_df.empty:
+            # Set up partitioning if needed
+            try:
+                # Import partitioning functions directly here to avoid circular imports
+                from db_partitioning import setup_partitioning, load_to_partitioned_tables, ensure_partitions_exist
+                from db_utils import get_engine
+                
+                # Get date range for partitioning
+                if table_name == "seat_prices_with_dt" and "date_of_journey" in combined_df.columns:
+                    date_column = "date_of_journey"
+                elif table_name == "seat_wise_prices_with_dt" and "travel_date" in combined_df.columns:
+                    date_column = "travel_date"
+                else:
+                    date_column = None
+                
+                if date_column and date_column in combined_df.columns:
+                    # Convert date strings to datetime objects if needed
+                    if combined_df[date_column].dtype == 'object':
+                        combined_df[date_column] = pd.to_datetime(combined_df[date_column]).dt.date
+                    
+                    # Get min and max dates
+                    min_date = combined_df[date_column].min()
+                    max_date = combined_df[date_column].max()
+                    
+                    # Ensure partitions exist for this date range
+                    print(f"🔄 Creating partitions for date range: {min_date} to {max_date}")
+                    ensure_partitions_exist(conn, min_date, max_date)
+                
+                # Set up partitioning if not already done
+                setup_partitioning(conn)
+                
+                # Load data into partitioned tables
+                print(f"📊 Loading data into partitioned tables for {table_name}...")
+                load_to_partitioned_tables(conn, combined_df, table_name)
+                print("✅ Data loaded into partitioned tables successfully!")
+                
+            except ImportError:
+                print("⚠️ db_partitioning.py not found. Skipping partitioning optimization.")
+            except Exception as e:
+                print(f"❌ Error during partitioning: {e}")
+                # Continue with regular processing even if partitioning fails
+    
     return new_files
 
 
@@ -461,6 +533,38 @@ def main():
         print("🔄 Refreshing views...")
         refresh_views(conn)
         print(f"✅ Successfully loaded {len(all_new_files)} new files")
+        
+        # Apply database indexes after loading new data
+        if INDEXES_MODULE_EXISTS:
+            apply_indexes(conn)  # Pass the existing connection
+        else:
+            print("⚠️ apply_indexes.py not found. Skipping index optimization.")
+            
+        # Set up and apply partitioning for improved performance
+        if PARTITIONING_MODULE_EXISTS:
+            print("🔄 Setting up table partitioning for improved performance...")
+            setup_partitioning(conn)  # Pass the existing connection
+            
+            # Load data into partitioned tables
+            print("🔄 Loading data into partitioned tables...")
+            # Get all data from the regular tables and load into partitioned tables
+            engine = get_engine()
+            
+            # Load seat_prices_with_dt data into partitioned table
+            print("📊 Loading seat_prices_with_dt data into partitioned tables...")
+            seat_prices_df = pd.read_sql("SELECT * FROM seat_prices_with_dt", engine)
+            if not seat_prices_df.empty:
+                load_to_partitioned_tables(conn, seat_prices_df, 'seat_prices_with_dt')
+            
+            # Load seat_wise_prices_with_dt data into partitioned table
+            print("📊 Loading seat_wise_prices_with_dt data into partitioned tables...")
+            seat_wise_prices_df = pd.read_sql("SELECT * FROM seat_wise_prices_with_dt", engine)
+            if not seat_wise_prices_df.empty:
+                load_to_partitioned_tables(conn, seat_wise_prices_df, 'seat_wise_prices_with_dt')
+                
+            print("✅ Data loaded into partitioned tables successfully!")
+        else:
+            print("⚠️ db_partitioning.py not found. Skipping partitioning optimization.")
     else:
         print("ℹ️ No new files to load")
 

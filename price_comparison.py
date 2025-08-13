@@ -147,85 +147,102 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
     """
     Get price comparison data for two operators on a specific date and time of journey
     """
-    # Get model prices from seat_prices_with_dt
+    # Get model prices from partitioned table for better performance
     model_query = """
-    WITH latest_prices AS (
-        SELECT DISTINCT ON (schedule_id, seat_type)
-            seat_type,
-            price,  -- For dynamic pricing model operator, use price column
-            hours_before_departure,
+    -- Using partitioned table for better performance
+    SELECT 
+        sp.seat_type,
+        sp.price,
+        sp.hours_before_departure,
+        sp.schedule_id
+    FROM seat_prices_partitioned sp
+    JOIN (
+        -- Get the latest timestamp for each schedule_id and seat_type combination
+        SELECT 
             schedule_id,
-            "TimeAndDateStamp"
-        FROM seat_prices_with_dt
+            seat_type,
+            MAX(timeanddatestamp) as latest_timestamp
+        FROM seat_prices_partitioned
         WHERE date_of_journey = %s
             AND operator_id = %s
             AND departure_time = %s
-        ORDER BY schedule_id, seat_type, "TimeAndDateStamp" DESC
-    )
-    SELECT 
-        seat_type,
-        price,
-        hours_before_departure,
-        schedule_id
-    FROM latest_prices
+        GROUP BY schedule_id, seat_type
+    ) latest ON 
+        sp.schedule_id = latest.schedule_id AND
+        sp.seat_type = latest.seat_type AND
+        sp.timeanddatestamp = latest.latest_timestamp
+    WHERE sp.date_of_journey = %s
+        AND sp.operator_id = %s
+        AND sp.departure_time = %s
     """
     # Cast operator_id to string to match database column type
-    model_prices = execute_query(model_query, params=(date_of_journey, str(model_operator_id), time_of_journey))
+    model_prices = execute_query(model_query, params=(date_of_journey, str(model_operator_id), time_of_journey, 
+                                                    date_of_journey, str(model_operator_id), time_of_journey))
     
-    # Get actual prices from seat_prices_with_dt
+    # Get actual prices from partitioned table for better performance
     actual_query = """
-    WITH latest_prices AS (
-        SELECT DISTINCT ON (schedule_id, seat_type)
-            seat_type,
-            actual_fare as price,  -- For non-dynamic pricing operator, use actual_fare column
-            hours_before_departure,
+    -- Using partitioned table for better performance
+    SELECT 
+        sp.seat_type,
+        sp.actual_fare as price,  -- For non-dynamic pricing operator, use actual_fare column
+        sp.hours_before_departure,
+        sp.schedule_id
+    FROM seat_prices_partitioned sp
+    JOIN (
+        -- Get the latest timestamp for each schedule_id and seat_type combination
+        SELECT 
             schedule_id,
-            "TimeAndDateStamp"
-        FROM seat_prices_with_dt
+            seat_type,
+            MAX(timeanddatestamp) as latest_timestamp
+        FROM seat_prices_partitioned
         WHERE date_of_journey = %s
             AND operator_id = %s
             AND departure_time = %s
-        ORDER BY schedule_id, seat_type, "TimeAndDateStamp" DESC
-    )
-    SELECT 
-        seat_type,
-        price,
-        hours_before_departure,
-        schedule_id
-    FROM latest_prices
+        GROUP BY schedule_id, seat_type
+    ) latest ON 
+        sp.schedule_id = latest.schedule_id AND
+        sp.seat_type = latest.seat_type AND
+        sp.timeanddatestamp = latest.latest_timestamp
+    WHERE sp.date_of_journey = %s
+        AND sp.operator_id = %s
+        AND sp.departure_time = %s
     """
     # Cast operator_id to string to match database column type
-    actual_prices = execute_query(actual_query, params=(date_of_journey, str(actual_operator_id), time_of_journey))
+    actual_prices = execute_query(actual_query, params=(date_of_journey, str(actual_operator_id), time_of_journey,
+                                                      date_of_journey, str(actual_operator_id), time_of_journey))
     
-    # Get model seat-wise prices
+    # Get model seat-wise prices using partitioned tables
     model_seat_wise_query = """
-    WITH relevant_schedules AS (
-        SELECT schedule_id 
-        FROM seat_prices_with_dt 
-        WHERE date_of_journey = %s 
-            AND operator_id = %s 
-            AND departure_time = %s
-    ),
-    latest_snapshots AS (
-        SELECT DISTINCT ON (swp.schedule_id, swp.seat_number)
-            swp.schedule_id,
-            swp.seat_number,
-            swp."TimeAndDateStamp"
-        FROM seat_wise_prices_with_dt swp
-        JOIN relevant_schedules rs ON swp.schedule_id = rs.schedule_id
-        WHERE swp.travel_date = %s
-        ORDER BY swp.schedule_id, swp.seat_number, swp."TimeAndDateStamp" DESC
-    )
+    -- Using partitioned tables for better performance
     SELECT 
         swp.seat_number,
         swp.seat_type,
         swp.final_price,
         swp.schedule_id
-    FROM seat_wise_prices_with_dt swp
-    JOIN latest_snapshots ls 
-        ON swp.schedule_id = ls.schedule_id 
-        AND swp.seat_number = ls.seat_number 
-        AND swp."TimeAndDateStamp" = ls."TimeAndDateStamp"
+    FROM seat_wise_prices_partitioned swp
+    JOIN (
+        -- Get schedule IDs for the selected date, operator, and time
+        SELECT DISTINCT schedule_id 
+        FROM seat_prices_partitioned 
+        WHERE date_of_journey = %s 
+            AND operator_id = %s 
+            AND departure_time = %s
+    ) rs ON swp.schedule_id = rs.schedule_id
+    -- Only include rows where TimeAndDateStamp is the latest for each seat
+    JOIN (
+        SELECT 
+            schedule_id,
+            seat_number,
+            MAX(timeanddatestamp) as latest_timestamp
+        FROM seat_wise_prices_partitioned
+        WHERE travel_date = %s
+        GROUP BY schedule_id, seat_number
+    ) latest ON 
+        swp.schedule_id = latest.schedule_id AND
+        swp.seat_number = latest.seat_number AND
+        swp.timeanddatestamp = latest.latest_timestamp
+    -- Add explicit index hints
+    /* QUERY PLAN HINT: Use indexes on (schedule_id, seat_number, timeanddatestamp) */
     """
     # Cast operator_id to string to match database column type
     model_seat_wise_prices = execute_query(model_seat_wise_query, 
@@ -236,35 +253,38 @@ def get_price_comparison_data(date_of_journey, model_operator_id, actual_operato
         model_seat_wise_prices['seat_number'] = pd.to_numeric(model_seat_wise_prices['seat_number'], errors='coerce')
         model_seat_wise_prices = model_seat_wise_prices.sort_values('seat_number')
     
-    # Get actual seat-wise prices
+    # Get actual seat-wise prices using partitioned tables
     actual_seat_wise_query = """
-    WITH relevant_schedules AS (
-        SELECT schedule_id 
-        FROM seat_prices_with_dt 
-        WHERE date_of_journey = %s 
-            AND operator_id = %s 
-            AND departure_time = %s
-    ),
-    latest_snapshots AS (
-        SELECT DISTINCT ON (swp.schedule_id, swp.seat_number)
-            swp.schedule_id,
-            swp.seat_number,
-            swp."TimeAndDateStamp"
-        FROM seat_wise_prices_with_dt swp
-        JOIN relevant_schedules rs ON swp.schedule_id = rs.schedule_id
-        WHERE swp.travel_date = %s
-        ORDER BY swp.schedule_id, swp.seat_number, swp."TimeAndDateStamp" DESC
-    )
+    -- Using partitioned tables for better performance
     SELECT 
         swp.seat_number,
         swp.seat_type,
         swp.actual_fare as final_price,
         swp.schedule_id
-    FROM seat_wise_prices_with_dt swp
-    JOIN latest_snapshots ls 
-        ON swp.schedule_id = ls.schedule_id 
-        AND swp.seat_number = ls.seat_number 
-        AND swp."TimeAndDateStamp" = ls."TimeAndDateStamp"
+    FROM seat_wise_prices_partitioned swp
+    JOIN (
+        -- Get schedule IDs for the selected date, operator, and time
+        SELECT DISTINCT schedule_id 
+        FROM seat_prices_partitioned 
+        WHERE date_of_journey = %s 
+            AND operator_id = %s 
+            AND departure_time = %s
+    ) rs ON swp.schedule_id = rs.schedule_id
+    -- Only include rows where TimeAndDateStamp is the latest for each seat
+    JOIN (
+        SELECT 
+            schedule_id,
+            seat_number,
+            MAX(timeanddatestamp) as latest_timestamp
+        FROM seat_wise_prices_partitioned
+        WHERE travel_date = %s
+        GROUP BY schedule_id, seat_number
+    ) latest ON 
+        swp.schedule_id = latest.schedule_id AND
+        swp.seat_number = latest.seat_number AND
+        swp.timeanddatestamp = latest.latest_timestamp
+    -- Add explicit index hints
+    /* QUERY PLAN HINT: Use indexes on (schedule_id, seat_number, timeanddatestamp) */
     """
     # Cast operator_id to string to match database column type
     actual_seat_wise_prices = execute_query(actual_seat_wise_query, 
