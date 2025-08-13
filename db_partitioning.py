@@ -75,6 +75,38 @@ def ensure_partitions_exist(start_date, end_date):
         print(f"❌ Error ensuring partitions exist: {str(e)}")
         return False
 
+def load_to_partitioned_tables(conn, df, table_name, batch_size=100000):
+    """Load data to partitioned tables in batches.
+    
+    Args:
+        conn: Database connection
+        df (DataFrame): DataFrame containing the data
+        table_name (str): Name of the table (e.g., seat_prices_with_dt)
+        batch_size (int): Number of rows to process in each batch
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        if df.empty:
+            print(f"⚠️ No data to load into partitioned {table_name}")
+            return True
+        
+        # Determine the date column based on table name
+        if table_name in ["seat_prices_with_dt", "seat_prices_raw"]:
+            date_column = "date_of_journey"
+        elif table_name in ["seat_wise_prices_with_dt", "seat_wise_prices_raw"]:
+            date_column = "travel_date"
+        else:
+            print(f"⚠️ Unknown table {table_name}, cannot determine date column")
+            return False
+        
+        # Call the existing function with the correct parameters
+        return load_data_to_partitioned_tables(df, table_name, date_column, batch_size)
+    except Exception as e:
+        print(f"❌ Error in load_to_partitioned_tables: {str(e)}")
+        return False
+
 def load_data_to_partitioned_tables(df, table_name, date_column, batch_size=100000):
     """Load data to partitioned tables in batches.
     
@@ -162,7 +194,8 @@ def get_partition_stats():
                 FROM pg_inherits
                 JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
                 JOIN pg_class child ON pg_inherits.inhrelid = child.oid
-                WHERE parent.relname IN ('seat_prices_partitioned', 'seat_wise_prices_partitioned')
+                WHERE parent.relname IN ('seat_prices_partitioned', 'seat_wise_prices_partitioned', 
+                                        'seat_prices_raw_partitioned', 'seat_wise_prices_raw_partitioned')
                 ORDER BY parent.relname, child.relname;
             """))
             

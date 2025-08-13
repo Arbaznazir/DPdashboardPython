@@ -76,7 +76,7 @@ def get_matching_times_of_journey(date_of_journey, model_operator_id, actual_ope
       AND date_of_journey = %s
       AND departure_time IS NOT NULL
     """
-    check_result = execute_query(check_query, params=(model_operator_id, actual_operator_id, date_of_journey))
+    check_result = execute_query(check_query, params=(str(model_operator_id), str(actual_operator_id), date_of_journey))
     
     if check_result is None or check_result.empty or check_result['count'].iloc[0] == 0:
         print(f"No non-NULL departure_times found for these operators on {date_of_journey}")
@@ -95,7 +95,7 @@ def get_matching_times_of_journey(date_of_journey, model_operator_id, actual_ope
         AND a.departure_time IS NOT NULL
     ORDER BY a.departure_time
     """
-    result = execute_query(query, params=(date_of_journey, model_operator_id, actual_operator_id))
+    result = execute_query(query, params=(date_of_journey, str(model_operator_id), str(actual_operator_id)))
     
     if result is None or result.empty:
         print("No matching times found in database query")
@@ -133,7 +133,7 @@ def get_matching_times_with_same_seat_types(date_of_journey, operator1_id, opera
     ORDER BY a.departure_time
     """
     
-    result = execute_query(query, params=(date_of_journey, operator1_id, operator2_id))
+    result = execute_query(query, params=(date_of_journey, str(operator1_id), str(operator2_id)))
     
     if result is None or result.empty:
         print(f"No matching times with same seat types found for operators {operator1_id} and {operator2_id} on {date_of_journey}")

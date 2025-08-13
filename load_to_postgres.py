@@ -13,9 +13,17 @@ except ImportError:
     
 # Import partitioning functions if the module exists
 try:
+    # Use absolute import path to ensure module is found
+    import sys
+    import os
+    # Add the current directory to the path if not already there
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
     from db_partitioning import setup_partitioning, load_to_partitioned_tables
     PARTITIONING_MODULE_EXISTS = True
-except ImportError:
+except ImportError as e:
+    print(f"⚠️ Error importing db_partitioning: {e}")
     PARTITIONING_MODULE_EXISTS = False
 
 # ----------------- CONFIG -----------------
@@ -42,6 +50,21 @@ def get_connection():
 
 def ensure_table_exists(conn, table_name, sample_df):
     cur = conn.cursor()
+    
+    # Check if table already exists
+    cur.execute(
+        """SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = %s
+        );""", (table_name,)
+    )
+    table_exists = cur.fetchone()[0]
+    
+    if table_exists:
+        print(f"✅ Table {table_name} already exists, skipping creation")
+        cur.close()
+        return
+        
     # Deduplicate columns case-insensitively, keeping only the first occurrence
     seen = set()
     orig_cols = []
@@ -59,12 +82,18 @@ def ensure_table_exists(conn, table_name, sample_df):
         if not any(c.lower() == col.lower() for c in final_cols):
             final_cols.append(col)
     columns = ", ".join([f'{col} TEXT' for col in final_cols])
-    cur.execute(
-        sql.SQL(f"""CREATE TABLE IF NOT EXISTS {table_name} ({columns});""")
-    )
-    conn.commit()
+    
+    try:
+        cur.execute(
+            sql.SQL(f"""CREATE TABLE IF NOT EXISTS {table_name} ({columns});""")
+        )
+        conn.commit()
+        print(f"🛠️ Created table: {table_name}")
+    except Exception as e:
+        print(f"⚠️ Error creating {table_name}: {e}")
+        conn.rollback()
+    
     cur.close()
-    print(f"🛠️ Ensured table exists: {table_name}")
 
 
 def extract_timestamp_from_filename(filename, table_type):
@@ -215,7 +244,7 @@ def load_csv_files(folder, table_name, conn, already_loaded):
     table_type = "seat_prices" if "seat_prices" in table_name else "seat_wise_prices"
     
     # Track if this is a table that needs partitioning
-    needs_partitioning = table_name in ["seat_prices_with_dt", "seat_wise_prices_with_dt"]
+    needs_partitioning = table_name in ["seat_prices_with_dt", "seat_wise_prices_with_dt", "seat_prices_raw", "seat_wise_prices_raw"]
     
     # Track all loaded dataframes for partitioning
     all_loaded_dfs = []
@@ -336,9 +365,9 @@ def load_csv_files(folder, table_name, conn, already_loaded):
                 from db_utils import get_engine
                 
                 # Get date range for partitioning
-                if table_name == "seat_prices_with_dt" and "date_of_journey" in combined_df.columns:
+                if (table_name == "seat_prices_with_dt" or table_name == "seat_prices_raw") and "date_of_journey" in combined_df.columns:
                     date_column = "date_of_journey"
-                elif table_name == "seat_wise_prices_with_dt" and "travel_date" in combined_df.columns:
+                elif (table_name == "seat_wise_prices_with_dt" or table_name == "seat_wise_prices_raw") and "travel_date" in combined_df.columns:
                     date_column = "travel_date"
                 else:
                     date_column = None

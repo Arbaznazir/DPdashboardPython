@@ -32,12 +32,12 @@ ON seat_wise_prices_with_dt
 -- Main index for price queries on raw table
 CREATE INDEX IF NOT EXISTS idx_seat_prices_raw_query 
 ON seat_prices_raw 
-(date_of_journey, operator_id, departure_time, schedule_id, seat_type, "TimeAndDateStamp" DESC);
+(date_of_journey, operator_id, schedule_id, seat_type, "TimeAndDateStamp" DESC);
 
 -- Index for filtering on raw table
 CREATE INDEX IF NOT EXISTS idx_seat_prices_raw_schedules 
 ON seat_prices_raw 
-(date_of_journey, operator_id, departure_time, schedule_id);
+(date_of_journey, operator_id, schedule_id);
 
 -- Indexes for seat_wise_prices_raw table
 -- Index for the latest snapshots on raw table
