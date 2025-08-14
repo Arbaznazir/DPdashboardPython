@@ -53,10 +53,10 @@ def execute_query(query, params=None, fetch=True):
         return None
 
 def get_schedule_ids():
-    """Get unique schedule IDs from seat_prices_raw_partitioned table"""
+    """Get unique schedule IDs from seat_prices_partitioned table"""
     query = """
     SELECT DISTINCT "schedule_id" 
-    FROM seat_prices_raw_partitioned
+    FROM seat_prices_partitioned
     ORDER BY "schedule_id"
     """
     df = execute_query(query)
@@ -65,10 +65,10 @@ def get_schedule_ids():
     return []
 
 def get_operators():
-    """Get unique operators from seat_prices_raw_partitioned table"""
+    """Get unique operators from seat_prices_partitioned table"""
     query = """
     SELECT DISTINCT "operator_id" 
-    FROM seat_prices_raw_partitioned
+    FROM seat_prices_partitioned
     ORDER BY "operator_id"
     """
     df = execute_query(query)
@@ -77,10 +77,10 @@ def get_operators():
     return []
 
 def get_seat_types():
-    """Get unique seat types from seat_prices_raw_partitioned table"""
+    """Get unique seat types from seat_prices_partitioned table"""
     query = """
     SELECT DISTINCT "seat_type" 
-    FROM seat_prices_raw_partitioned
+    FROM seat_prices_partitioned
     ORDER BY "seat_type"
     """
     df = execute_query(query)
@@ -89,13 +89,13 @@ def get_seat_types():
     return []
 
 def get_seat_types_by_schedule_id(schedule_id):
-    """Get unique seat types for a specific schedule_id from seat_wise_prices_raw_partitioned table"""
+    """Get unique seat types for a specific schedule_id from seat_wise_prices_partitioned table"""
     if not schedule_id:
         return []
         
     query = """
     SELECT DISTINCT "seat_type" 
-    FROM seat_wise_prices_raw_partitioned
+    FROM seat_wise_prices_partitioned
     WHERE "schedule_id" = %(schedule_id)s
     ORDER BY "seat_type"
     """
@@ -122,7 +122,7 @@ def get_operator_id_by_schedule_id(schedule_id):
     try:
         query = """
         SELECT DISTINCT "operator_id"
-        FROM seat_prices_raw
+        FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         LIMIT 1
         """
@@ -151,7 +151,7 @@ def get_origin_destination_by_schedule_id(schedule_id):
     try:
         query = """
         SELECT DISTINCT "origin_id", "destination_id", "op_origin", "op_destination"
-        FROM seat_wise_prices_raw
+        FROM seat_wise_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         LIMIT 1
         """
@@ -181,7 +181,7 @@ def get_origin_destination_by_schedule_id(schedule_id):
 def get_seat_wise_prices(schedule_id, hours_before_departure=None):
     """Get seat-wise pricing data for a specific schedule_id and hours_before_departure
     
-    This function joins seat_prices_raw and seat_wise_prices_raw tables to get the correct data
+    This function joins seat_prices_raw and seat_wise_prices_partitioned tables to get the correct data
     based on TimeAndDateStamp for the specified hours_before_departure.
     """
     if not schedule_id:
@@ -198,7 +198,7 @@ def get_seat_wise_prices(schedule_id, hours_before_departure=None):
             
             timestamp_query = """
             SELECT "TimeAndDateStamp"
-            FROM seat_prices_raw
+            FROM seat_prices_partitioned
             WHERE "schedule_id" = %(schedule_id)s AND "hours_before_departure" = %(hours_before_departure)s
             ORDER BY "TimeAndDateStamp" DESC
             LIMIT 1
@@ -221,7 +221,7 @@ def get_seat_wise_prices(schedule_id, hours_before_departure=None):
             # Now get the seat-wise prices for this TimeAndDateStamp
             query = """
             SELECT DISTINCT ON ("seat_number") "seat_number", "actual_fare", "final_price"
-            FROM seat_wise_prices_raw
+            FROM seat_wise_prices_partitioned
             WHERE "schedule_id" = %(schedule_id)s AND "TimeAndDateStamp" = %(timestamp)s
             ORDER BY "seat_number" ASC
             """
@@ -235,13 +235,13 @@ def get_seat_wise_prices(schedule_id, hours_before_departure=None):
             query = """
             WITH latest_snapshot AS (
                 SELECT "TimeAndDateStamp"
-                FROM seat_wise_prices_raw
+                FROM seat_wise_prices_partitioned
                 WHERE "schedule_id" = %(schedule_id)s
                 ORDER BY "TimeAndDateStamp" DESC
                 LIMIT 1
             )
             SELECT DISTINCT ON ("seat_number") "seat_number", "actual_fare", "final_price"
-            FROM seat_wise_prices_raw
+            FROM seat_wise_prices_partitioned
             WHERE "schedule_id" = %(schedule_id)s AND "TimeAndDateStamp" = (SELECT "TimeAndDateStamp" FROM latest_snapshot)
             ORDER BY "seat_number" ASC
             """
@@ -514,41 +514,35 @@ def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_
         where_clauses.append('"seat_type" = %(seat_type)s')
         params['seat_type'] = seat_type
     
+    # If hours_before_departure is specified, add it to the WHERE clause directly
+    if hours_before_departure is not None:
+        try:
+            hours_before_departure_float = float(hours_before_departure)
+            where_clauses.append('ABS("hours_before_departure"::float - %(hours_before_departure)s) < 0.01')
+            params['hours_before_departure'] = hours_before_departure_float
+            print(f"Added hours_before_departure filter: {hours_before_departure_float}")
+        except (ValueError, TypeError) as e:
+            print(f"Error converting hours_before_departure to float: {e}")
+    
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     
-    # First get the data from seat_prices_raw
+    # Get the data from seat_prices_partitioned with all filters applied directly in SQL
     query = f"""
-    SELECT * FROM seat_prices_raw
+    SELECT * FROM seat_prices_partitioned
     WHERE {where_clause}
     ORDER BY "TimeAndDateStamp" DESC
     """
     
     df = execute_query(query, params)
     
-    # If hours_before_departure is specified, filter the data further
-    if df is not None and hours_before_departure is not None:
-        # Get the hours_before_departure data for the current schedule_id
-        hbd_query = f"""
-        SELECT * FROM fnGetHoursBeforeDeparture
-        WHERE "schedule_id" = %(schedule_id)s
-        AND "hours_before_departure" = %(hours_before_departure)s
-        """
-        
-        hbd_params = {
-            'schedule_id': schedule_id,
-            'hours_before_departure': hours_before_departure
-        }
-        
-        hbd_df = execute_query(hbd_query, hbd_params)
-        
-        if hbd_df is not None and not hbd_df.empty:
-            # Merge the data based on schedule_id and TimeAndDateStamp
-            df = pd.merge(
-                df,
-                hbd_df,
-                on=['schedule_id', 'TimeAndDateStamp'],
-                how='inner'
-            )
+    # Debug output
+    print(f"Query: {query}")
+    print(f"Params: {params}")
+    
+    # If df is empty after filtering, return None
+    if df is None or df.empty:
+        print("No data found for the selected filters")
+        return None
     
     # If date_of_journey is specified, filter the data further
     if df is not None and date_of_journey is not None:
@@ -588,7 +582,7 @@ def get_origin_destination_by_schedule_id(schedule_id):
         
         query = """
         SELECT DISTINCT "origin_id", "destination_id" 
-        FROM seat_wise_prices_raw
+        FROM seat_wise_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s::text
         LIMIT 1
         """
@@ -625,7 +619,7 @@ def get_seat_wise_data(schedule_id=None, hours_before_departure=None, date_of_jo
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     
     query = f"""
-    SELECT * FROM seat_wise_prices_raw
+    SELECT * FROM seat_wise_prices_partitioned
     WHERE {where_clause}
     ORDER BY "TimeAndDateStamp" DESC
     """    
@@ -716,20 +710,20 @@ def get_seat_wise_data(schedule_id=None, hours_before_departure=None, date_of_jo
 
 
 def get_hours_before_departure(schedule_id=None):
-    """Get hours before departure data from fnGetHoursBeforeDeparture view"""
-    # Use a simpler approach - just query the view directly
+    """Get hours before departure data from seat_prices_partitioned table"""
+    # Use the query directly from the seat_prices_partitioned table as provided by the user
     if schedule_id:
         query = """
-        SELECT DISTINCT "hours_before_departure" 
-        FROM fnGetHoursBeforeDeparture
+        SELECT DISTINCT "hours_before_departure"
+        FROM public.seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         ORDER BY "hours_before_departure" DESC
         """
         params = {'schedule_id': schedule_id}
     else:
         query = """
-        SELECT DISTINCT "hours_before_departure" 
-        FROM fnGetHoursBeforeDeparture
+        SELECT DISTINCT "hours_before_departure"
+        FROM public.seat_prices_partitioned
         ORDER BY "hours_before_departure" DESC
         """
         params = None
@@ -747,16 +741,22 @@ def get_hours_before_departure(schedule_id=None):
             # Convert to numeric for proper sorting
             df['hours_before_departure'] = pd.to_numeric(df['hours_before_departure'], errors='coerce')
             
+            # Remove NaN values
+            df = df.dropna(subset=['hours_before_departure'])
+            
             # Sort in descending order
             df = df.sort_values('hours_before_departure', ascending=False)
             
-            # Get unique values (this will keep only one 0)
+            # Get all unique values without any rounding
             unique_values = df['hours_before_departure'].unique().tolist()
             
             print(f"Unique hours before departure values: {unique_values}")
-            return [str(int(val)) for val in unique_values]  # Convert back to strings for dropdown
+            
+            # Return all values without any processing or rounding
+            return [str(int(val)) if val.is_integer() else str(val) for val in unique_values]  # Format integers without decimal
     except Exception as e:
         print(f"Error getting hours before departure: {e}")
+        return []
     
     return []
 
@@ -890,7 +890,7 @@ def get_demand_index(schedule_id, hours_before_departure=None, seat_type=None):
         # Direct query for demand_index column - based on the image, we know it exists
         query = """
         SELECT "demand_index", "seat_type"
-        FROM seat_prices_raw
+        FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         """
         
@@ -905,7 +905,7 @@ def get_demand_index(schedule_id, hours_before_departure=None, seat_type=None):
         if hours_before_departure is not None:
             query = """
             SELECT spr."demand_index", spr."seat_type"
-            FROM seat_prices_raw spr
+            FROM seat_prices_partitioned spr
             JOIN fnGetHoursBeforeDeparture hbd ON spr."schedule_id" = hbd."schedule_id" 
                 AND spr."TimeAndDateStamp" = hbd."TimeAndDateStamp"
             WHERE spr."schedule_id" = %(schedule_id)s
@@ -1049,7 +1049,7 @@ def get_operator_id_by_schedule_id(schedule_id):
         
     query = """
     SELECT DISTINCT "operator_id" 
-    FROM seat_prices_raw
+    FROM seat_prices_partitioned
     WHERE "schedule_id" = %(schedule_id)s
     LIMIT 1
     """
@@ -1088,7 +1088,7 @@ def get_seat_types_count(schedule_id):
         # Query to count distinct seat types for the schedule ID
         query = """
         SELECT COUNT(DISTINCT "seat_type") as seat_types_count
-        FROM seat_wise_prices_raw
+        FROM seat_wise_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         """
         

@@ -432,14 +432,14 @@ def refresh_views(conn):
     cur.execute("DROP VIEW IF EXISTS seat_prices_latest;")
     cur.execute("""
         CREATE VIEW seat_prices_latest AS
-        SELECT * FROM seat_prices_raw
+        SELECT * FROM seat_prices_partitioned
         ORDER BY "TimeAndDateStamp" DESC;
     """)
 
     cur.execute("DROP VIEW IF EXISTS seat_wise_prices_latest;")
     cur.execute("""
         CREATE VIEW seat_wise_prices_latest AS
-        SELECT * FROM seat_wise_prices_raw
+        SELECT * FROM seat_wise_prices_partitioned
         ORDER BY "TimeAndDateStamp" DESC;
     """)
 
@@ -447,14 +447,14 @@ def refresh_views(conn):
     cur.execute("DROP VIEW IF EXISTS seat_prices_with_dt_latest;")
     cur.execute("""
         CREATE VIEW seat_prices_with_dt_latest AS
-        SELECT * FROM seat_prices_with_dt
+        SELECT * FROM seat_prices_with_dt_partitioned
         ORDER BY "TimeAndDateStamp" DESC;
     """)
 
     cur.execute("DROP VIEW IF EXISTS seat_wise_prices_with_dt_latest;")
     cur.execute("""
         CREATE VIEW seat_wise_prices_with_dt_latest AS
-        SELECT * FROM seat_wise_prices_with_dt
+        SELECT * FROM seat_wise_prices_with_dt_partitioned
         ORDER BY "TimeAndDateStamp" DESC;
     """)
 
@@ -465,7 +465,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW fnGetHoursBeforeDeparture AS
         SELECT DISTINCT "hours_before_departure", "schedule_id", "TimeAndDateStamp"
-        FROM seat_prices_raw;
+        FROM seat_prices_partitioned;
     """)
 
     # 2) occupancies
@@ -473,7 +473,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW occupancies AS
         SELECT DISTINCT "actual_occupancy", "seat_type", "schedule_id", "TimeAndDateStamp"
-        FROM seat_prices_raw
+        FROM seat_prices_partitioned
         ORDER BY "TimeAndDateStamp" DESC;
     """)
 
@@ -482,7 +482,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW expected_occupancies AS
         SELECT DISTINCT "expected_occupancy", "seat_type", "schedule_id", "TimeAndDateStamp"
-        FROM seat_prices_raw
+        FROM seat_prices_partitioned
         ORDER BY "TimeAndDateStamp" DESC;
     """)
 
@@ -491,7 +491,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW DateOfJourney AS
         SELECT DISTINCT "date_of_journey", "schedule_id", "TimeAndDateStamp"
-        FROM seat_prices_raw;
+        FROM seat_prices_partitioned;
     """)
 
     # 5) schedule_id_text
@@ -499,7 +499,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW schedule_id_text AS
         SELECT DISTINCT "schedule_id", CAST("schedule_id" AS TEXT) AS "schedule_id_text"
-        FROM seat_prices_raw;
+        FROM seat_prices_partitioned;
     """)
 
     # 6) Actual_Price_SP
@@ -507,7 +507,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW Actual_Price_SP AS
         SELECT DISTINCT "seat_type", "actual_fare", "schedule_id", "TimeAndDateStamp"
-        FROM seat_prices_raw;
+        FROM seat_prices_partitioned;
     """)
 
     # 7) Model_Price_SP
@@ -515,7 +515,7 @@ def refresh_views(conn):
     cur.execute("""
         CREATE VIEW Model_Price_SP AS
         SELECT DISTINCT "seat_type", "price", "schedule_id", "TimeAndDateStamp"
-        FROM seat_prices_raw;
+        FROM seat_prices_partitioned;
     """)
 
     conn.commit()

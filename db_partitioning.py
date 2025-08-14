@@ -10,7 +10,7 @@ from sqlalchemy import text
 from datetime import datetime, timedelta
 from db_utils import get_connection, get_engine
 
-def setup_partitioning(batch_size=500000):
+def setup_partitioning(batch_size=200000):
     """Set up database partitioning for improved performance.
     
     Args:
@@ -43,37 +43,29 @@ def setup_partitioning(batch_size=500000):
             # Create the partitioned tables structure directly using SQL statements
             # These statements create the parent partitioned tables if they don't exist
             conn.execute(text("""
+                -- Get the column definitions from the source tables
+                -- Create partitioned seat_prices table if it doesn't exist
+                CREATE TABLE IF NOT EXISTS seat_prices_partitioned (
+                    LIKE seat_prices_raw INCLUDING ALL,
+                    PRIMARY KEY (date_of_journey, schedule_id, seat_type, "TimeAndDateStamp")
+                ) PARTITION BY RANGE (date_of_journey);
+                
+                -- Create partitioned seat_wise_prices table if it doesn't exist
+                CREATE TABLE IF NOT EXISTS seat_wise_prices_partitioned (
+                    LIKE seat_wise_prices_raw INCLUDING ALL,
+                    PRIMARY KEY (travel_date, schedule_id, seat_number, "TimeAndDateStamp")
+                ) PARTITION BY RANGE (travel_date);
+                
                 -- Create partitioned seat_prices_with_dt table if it doesn't exist
                 CREATE TABLE IF NOT EXISTS seat_prices_with_dt_partitioned (
-                    schedule_id INTEGER,
-                    seat_type VARCHAR(50),
-                    price NUMERIC,
-                    date_of_journey DATE,
-                    timeanddatestamp TIMESTAMP,
-                    PRIMARY KEY (date_of_journey, schedule_id, seat_type, timeanddatestamp)
+                    LIKE seat_prices_with_dt INCLUDING ALL,
+                    PRIMARY KEY (date_of_journey, schedule_id, seat_type, "TimeAndDateStamp")
                 ) PARTITION BY RANGE (date_of_journey);
                 
                 -- Create partitioned seat_wise_prices_with_dt table if it doesn't exist
                 CREATE TABLE IF NOT EXISTS seat_wise_prices_with_dt_partitioned (
-                    schedule_id INTEGER,
-                    seat_number INTEGER,
-                    seat_type VARCHAR(50),
-                    final_price NUMERIC,
-                    actual_fare NUMERIC,
-                    coach_layout_id INTEGER,
-                    sales_count NUMERIC,
-                    sales_percentage NUMERIC,
-                    operator_reservation_id INTEGER,
-                    travel_id INTEGER,
-                    origin_id INTEGER,
-                    destination_id INTEGER,
-                    travel_date DATE,
-                    op_origin INTEGER,
-                    op_destination INTEGER,
-                    snapshotdate VARCHAR(20),
-                    snapshottime VARCHAR(20),
-                    timeanddatestamp TIMESTAMP,
-                    PRIMARY KEY (travel_date, schedule_id, seat_number, timeanddatestamp)
+                    LIKE seat_wise_prices_with_dt INCLUDING ALL,
+                    PRIMARY KEY (travel_date, schedule_id, seat_number, "TimeAndDateStamp")
                 ) PARTITION BY RANGE (travel_date);
             """))
             

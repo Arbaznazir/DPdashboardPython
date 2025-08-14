@@ -525,13 +525,24 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
     default_message = html.Div([html.P("Select filters to view data")])
     data_json = None
     
-    try:
-        # Get KPI row
-        print(f"Creating KPI row with: schedule_id={schedule_id}, operator_id={operator_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
-        kpi_row = create_kpi_row(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    except Exception as e:
-        print(f"Error creating KPI row: {str(e)}")
-        kpi_row = html.Div([html.P(f"Error loading KPIs: {str(e)}")])
+    # Only show KPIs when hours_before_departure is selected
+    if hours_before_departure is not None:
+        try:
+            # Get KPI row
+            print(f"Creating KPI row with: schedule_id={schedule_id}, operator_id={operator_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
+            kpi_row = create_kpi_row(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        except Exception as e:
+            print(f"Error creating KPI row: {str(e)}")
+            kpi_row = html.Div([html.P(f"Error loading KPIs: {str(e)}")])
+    else:
+        # Show a message prompting to select an hour before departure
+        kpi_row = html.Div([
+            html.Div([
+                html.H4("Select an hour before departure to view KPIs", 
+                       className="text-center text-info mb-4",
+                       style={'padding': '20px'})
+            ], className="w-100")
+        ], className="row justify-content-center")
     
     # Price trend and price delta charts removed as requested
     
@@ -771,7 +782,7 @@ def toggle_detailed_data(n_clicks, current_style):
 )
 def update_date_summary_kpis(date_of_journey):
     """Update Date Summary KPIs based on selected date of journey"""
-    # Only show KPIs if a past date is selected
+    # Show KPIs if a past date is selected (no need for hours before departure)
     if date_of_journey and is_past_date(date_of_journey):
         return create_date_summary_kpis(date_of_journey)
     else:

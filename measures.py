@@ -16,9 +16,70 @@ def calculate_price_delta_percentage(actual_fare, model_price):
 
 def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Get KPI data for the dashboard"""
-    df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
-    
-    if df is None or df.empty:
+    try:
+        df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        
+        if df is None or df.empty:
+            return {
+                'avg_actual_fare': 0,
+                'avg_model_price': 0,
+                'avg_delta': 0,
+                'avg_delta_percentage': 0,
+                'avg_occupancy': 0,
+                'avg_expected_occupancy': 0
+            }
+        
+        # Convert columns to numeric and datetime
+        df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
+        
+        # Handle both price and final_price columns for different tables
+        if 'price' in df.columns:
+            df['price'] = pd.to_numeric(df['price'], errors='coerce')
+            model_price_col = 'price'
+        elif 'final_price' in df.columns:
+            df['final_price'] = pd.to_numeric(df['final_price'], errors='coerce')
+            model_price_col = 'final_price'
+        else:
+            print("WARNING: Neither price nor final_price column found in dataframe")
+            model_price_col = None
+        
+        # Handle TimeAndDateStamp more carefully
+        if 'TimeAndDateStamp' in df.columns:
+            try:
+                df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], errors='coerce')
+            except Exception as e:
+                print(f"Error converting TimeAndDateStamp: {str(e)}")
+                # Continue without the conversion if it fails
+                pass
+                
+        df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce')
+        df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce')
+        
+        # Calculate KPIs
+        avg_actual_fare = df['actual_fare'].mean()
+        
+        # Use the appropriate model price column
+        if model_price_col and model_price_col in df.columns:
+            avg_model_price = df[model_price_col].mean()
+        else:
+            avg_model_price = 0
+            print(f"WARNING: Model price column not found in dataframe. Columns: {df.columns.tolist()}")
+        
+        avg_delta = avg_actual_fare - avg_model_price
+        avg_delta_percentage = (avg_delta / avg_model_price * 100) if avg_model_price != 0 else 0
+        avg_occupancy = df['actual_occupancy'].mean()
+        avg_expected_occupancy = df['expected_occupancy'].mean()
+        
+        return {
+            'avg_actual_fare': round(avg_actual_fare, 2),
+            'avg_model_price': round(avg_model_price, 2),
+            'avg_delta': round(avg_delta, 2),
+            'avg_delta_percentage': round(avg_delta_percentage, 2),
+            'avg_occupancy': round(avg_occupancy, 2),
+            'avg_expected_occupancy': round(avg_expected_occupancy, 2)
+        }
+    except Exception as e:
+        print(f"Error in get_kpi_data: {str(e)}")
         return {
             'avg_actual_fare': 0,
             'avg_model_price': 0,
@@ -28,29 +89,7 @@ def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_befor
             'avg_expected_occupancy': 0
         }
     
-    # Convert columns to numeric and datetime
-    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
-    df['price'] = pd.to_numeric(df['price'], errors='coerce')
-    df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
-    df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce')
-    df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce')
-    
-    # Calculate KPIs
-    avg_actual_fare = df['actual_fare'].mean()
-    avg_model_price = df['price'].mean()
-    avg_delta = avg_actual_fare - avg_model_price
-    avg_delta_percentage = (avg_delta / avg_model_price * 100) if avg_model_price != 0 else 0
-    avg_occupancy = df['actual_occupancy'].mean()
-    avg_expected_occupancy = df['expected_occupancy'].mean()
-    
-    return {
-        'avg_actual_fare': round(avg_actual_fare, 2),
-        'avg_model_price': round(avg_model_price, 2),
-        'avg_delta': round(avg_delta, 2),
-        'avg_delta_percentage': round(avg_delta_percentage, 2),
-        'avg_occupancy': round(avg_occupancy, 2),
-        'avg_expected_occupancy': round(avg_expected_occupancy, 2)
-    }
+
 
 def get_price_trend_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Get price trend data for the chart"""
@@ -109,15 +148,15 @@ def get_occupancy_data(schedule_id=None, operator_id=None, seat_type=None, hours
             "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
             "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy",
             "seat_type",
-            "timeanddatestamp"
+            "TimeAndDateStamp"
         FROM 
-            seat_prices_raw_partitioned
+            seat_prices_partitioned
         WHERE 
             "schedule_id" = %(schedule_id)s
             AND "actual_occupancy" IS NOT NULL
             AND "expected_occupancy" IS NOT NULL
         ORDER BY 
-            "seat_type", "hours_before_departure", "timeanddatestamp" DESC
+            "seat_type", "hours_before_departure", "TimeAndDateStamp" DESC
     )
     SELECT * FROM latest_snapshots
     ORDER BY "seat_type", "hours_before_departure" DESC
@@ -172,14 +211,14 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
         WITH all_hours AS (
             -- Get all distinct hours before departure for this schedule
             SELECT DISTINCT "hours_before_departure"
-            FROM seat_prices_raw_partitioned
+            FROM seat_prices_partitioned
             WHERE "schedule_id" = %(schedule_id)s
             ORDER BY "hours_before_departure" DESC
         ),
         all_seat_types AS (
             -- Get all distinct seat types for this schedule
             SELECT DISTINCT "seat_type"
-            FROM seat_prices_raw_partitioned
+            FROM seat_prices_partitioned
             WHERE "schedule_id" = %(schedule_id)s
         ),
         latest_snapshots AS (
@@ -187,10 +226,10 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
             SELECT DISTINCT ON (sp."hours_before_departure", sp."seat_type") 
                 sp."hours_before_departure", 
                 sp."seat_type",
-                sp."timeanddatestamp"
-            FROM seat_prices_raw_partitioned sp
+                sp."TimeAndDateStamp"
+            FROM seat_prices_partitioned sp
             WHERE sp."schedule_id" = %(schedule_id)s
-            ORDER BY sp."hours_before_departure", sp."seat_type", sp."timeanddatestamp" DESC
+            ORDER BY sp."hours_before_departure", sp."seat_type", sp."TimeAndDateStamp" DESC
         ),
         latest_seat_data AS (
             -- Get the latest data for each seat number within each snapshot
@@ -201,12 +240,12 @@ def get_seat_wise_price_sum_by_hour(schedule_id):
                 CAST(swp."actual_fare" AS NUMERIC) as "actual_fare",
                 CAST(swp."final_price" AS NUMERIC) as "final_price"
             FROM latest_snapshots ls
-            JOIN seat_wise_prices_raw_partitioned swp 
-                ON swp."timeanddatestamp" = ls."timeanddatestamp" 
+            JOIN seat_wise_prices_partitioned swp 
+                ON swp."TimeAndDateStamp" = ls."TimeAndDateStamp" 
                 AND swp."seat_type" = ls."seat_type"
                 AND swp."schedule_id" = %(schedule_id)s
             ORDER BY 
-                swp."seat_number", ls."hours_before_departure", ls."seat_type", swp."timeanddatestamp" DESC
+                swp."seat_number", ls."hours_before_departure", ls."seat_type", swp."TimeAndDateStamp" DESC
         )
         SELECT 
             "hours_before_departure",

@@ -37,28 +37,27 @@ def get_price_summary_by_date(date_of_journey):
             print(f"DEBUG: Multiple schedule IDs: {schedule_ids_tuple}")
         
         # Query for seat_prices_raw - get latest prices for each schedule_id and seat_type
-        # Using the approach from measures.py that's known to work
+        # Using direct query from seat_prices_partitioned
         seat_prices_query = f"""
         WITH latest_snapshots AS (
             -- Get the latest snapshot for each schedule_id and seat_type with hours_before_departure
             SELECT DISTINCT ON (sp.schedule_id, sp.seat_type) 
                 sp.schedule_id, 
                 sp.seat_type,
-                sp."TimeAndDateStamp"
-            FROM seat_prices_raw sp
+                sp."TimeAndDateStamp",
+                sp.hours_before_departure::float as hours_before_departure
+            FROM seat_prices_partitioned sp
             JOIN dateofjourney doj ON sp.schedule_id = doj.schedule_id
-            JOIN fnGetHoursBeforeDeparture hbd ON sp.schedule_id = hbd.schedule_id 
-                AND sp."TimeAndDateStamp" = hbd."TimeAndDateStamp"
             WHERE sp.schedule_id IN {schedule_ids_tuple}
             AND doj.date_of_journey = '{date_of_journey}'
-            ORDER BY sp.schedule_id, sp.seat_type, hbd."TimeAndDateStamp" DESC
+            ORDER BY sp.schedule_id, sp.seat_type, sp.hours_before_departure::float ASC
         )
         SELECT 
             sp.schedule_id,
             sp.seat_type,
             CAST(sp.actual_fare AS NUMERIC) as actual_price,
             CAST(sp.price AS NUMERIC) as model_price
-        FROM seat_prices_raw sp
+        FROM seat_prices_partitioned sp
         JOIN latest_snapshots ls ON 
             sp.schedule_id = ls.schedule_id AND 
             sp.seat_type = ls.seat_type AND 
@@ -66,33 +65,49 @@ def get_price_summary_by_date(date_of_journey):
         """
         
         # Query for seat_wise_prices_raw - get latest prices for each schedule_id and seat_number
-        # Using the approach from measures.py that's known to work
+        # Using direct query from seat_wise_prices_partitioned
         seat_wise_prices_query = f"""
         WITH latest_snapshots AS (
-            -- Get the latest snapshot for each schedule_id and seat_number with hours_before_departure
+            -- Get the latest snapshot for each schedule_id and seat_number
             SELECT DISTINCT ON (swp.schedule_id, swp.seat_number) 
                 swp.schedule_id, 
                 swp.seat_number,
                 swp."TimeAndDateStamp"
-            FROM seat_wise_prices_raw swp
+            FROM seat_wise_prices_partitioned swp
             JOIN dateofjourney doj ON swp.schedule_id = doj.schedule_id
-            JOIN fnGetHoursBeforeDeparture hbd ON swp.schedule_id = hbd.schedule_id 
-                AND swp."TimeAndDateStamp" = hbd."TimeAndDateStamp"
             WHERE swp.schedule_id IN {schedule_ids_tuple}
             AND doj.date_of_journey = '{date_of_journey}'
-            ORDER BY swp.schedule_id, swp.seat_number, hbd."TimeAndDateStamp" DESC
+            ORDER BY swp.schedule_id, swp.seat_number, swp."TimeAndDateStamp" DESC
         )
         SELECT 
             swp.schedule_id,
             swp.seat_number,
             CAST(swp.actual_fare AS NUMERIC) as actual_price,
             CAST(swp.final_price AS NUMERIC) as model_price
-        FROM seat_wise_prices_raw swp
+        FROM seat_wise_prices_partitioned swp
         JOIN latest_snapshots ls ON 
             swp.schedule_id = ls.schedule_id AND 
             swp.seat_number = ls.seat_number AND 
             swp."TimeAndDateStamp" = ls."TimeAndDateStamp"
         """
+        
+        # Print debug information
+        print(f"DEBUG: Executing seat_wise_prices_query with schedule_ids: {schedule_ids_tuple}")
+        print(f"DEBUG: Date of journey: {date_of_journey}")
+        
+        # Check if the query returns any data
+        test_query = f"""
+        SELECT COUNT(*) FROM seat_wise_prices_partitioned swp
+        JOIN dateofjourney doj ON swp.schedule_id = doj.schedule_id
+        WHERE swp.schedule_id IN {schedule_ids_tuple}
+        AND doj.date_of_journey = '{date_of_journey}'
+        """
+        
+        test_df = execute_query(test_query)
+        if test_df is not None and not test_df.empty:
+            print(f"DEBUG: Found {test_df.iloc[0, 0]} rows in seat_wise_prices_partitioned for the given filters")
+        else:
+            print("DEBUG: No data found in seat_wise_prices_partitioned for the given filters")
         
         # Execute queries
         print(f"DEBUG: Executing seat_prices_query: {seat_prices_query}")
