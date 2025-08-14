@@ -528,8 +528,13 @@ def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_
     
     # Get the data from seat_prices_partitioned with all filters applied directly in SQL
     query = f"""
-    SELECT * FROM seat_prices_partitioned
-    WHERE {where_clause}
+    SELECT 
+        sp.*,
+        "TimeAndDateStamp" AS timeanddatestamp
+    FROM seat_prices_partitioned sp
+    WHERE "schedule_id" = %(schedule_id)s
+      AND "operator_id" = %(operator_id)s
+      AND ABS("hours_before_departure"::float - %(hours_before_departure)s) < 0.01
     ORDER BY "TimeAndDateStamp" DESC
     """
     
@@ -606,6 +611,89 @@ def get_origin_destination_by_schedule_id(schedule_id):
     except Exception as e:
         print(f"Error retrieving origin/destination for schedule ID {schedule_id}: {str(e)}")
         return None, None, "Unknown", "Unknown"
+
+def get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, departure_time):
+    """Get distinct prices from seat_prices_with_dt_partitioned filtered by date, operator, and departure time"""
+    try:
+        # First check if the table exists
+        table_check_query = """
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'seat_prices_with_dt_partitioned'
+        )
+        """
+        table_exists_df = execute_query(table_check_query, [])
+        table_exists = table_exists_df.iloc[0][0] if table_exists_df is not None and not table_exists_df.empty else False
+        
+        if not table_exists:
+            print("WARNING: seat_prices_with_dt_partitioned table does not exist")
+            # Try to use seat_prices_partitioned as a fallback
+            fallback_query = """
+            SELECT DISTINCT ON (schedule_id, seat_type, hours_before_departure)
+                schedule_id,
+                seat_type,
+                hours_before_departure,
+                actual_fare,
+                CASE 
+                    WHEN price IS NOT NULL THEN price
+                    WHEN final_price IS NOT NULL THEN final_price
+                    ELSE actual_fare
+                END AS price,
+                COALESCE(actual_occupancy, 0) AS actual_occupancy,
+                COALESCE(expected_occupancy, 0) AS expected_occupancy,
+                "TimeAndDateStamp" as timeanddatestamp
+            FROM seat_prices_partitioned
+            WHERE date_of_journey = %s
+              AND operator_id = %s
+              AND departure_time = %s
+            ORDER BY schedule_id, seat_type, hours_before_departure, "TimeAndDateStamp" DESC;
+            """
+            print(f"Using fallback query on seat_prices_partitioned")
+            params = [date_of_journey, operator_id, departure_time]
+            df = execute_query(fallback_query, params)
+        else:
+            # Original query on seat_prices_with_dt_partitioned
+            query = """
+            SELECT DISTINCT ON (schedule_id, seat_type, hours_before_departure)
+                schedule_id,
+                seat_type,
+                hours_before_departure,
+                actual_fare,
+                actual_fare AS price, -- For non-dynamic pricing operator, use actual_fare as model price
+                0 AS actual_occupancy, -- Default values for occupancy since they might not be in this table
+                0 AS expected_occupancy,
+                "TimeAndDateStamp" as timeanddatestamp -- Use lowercase for consistency
+            FROM seat_prices_with_dt_partitioned
+            WHERE date_of_journey = %s
+              AND operator_id = %s
+              AND departure_time = %s
+            ORDER BY schedule_id, seat_type, hours_before_departure, "TimeAndDateStamp" DESC;
+            """
+            
+            params = [date_of_journey, operator_id, departure_time]
+            
+            print(f"Executing distinct prices query with params: date={date_of_journey}, operator={operator_id}, time={departure_time}")
+            df = execute_query(query, params)
+        
+        if df is not None and not df.empty:
+            print(f"Retrieved {len(df)} distinct price records")
+            # Ensure all required columns exist
+            if 'actual_fare' not in df.columns:
+                df['actual_fare'] = 0
+            if 'price' not in df.columns:
+                df['price'] = df['actual_fare']
+            if 'actual_occupancy' not in df.columns:
+                df['actual_occupancy'] = 0
+            if 'expected_occupancy' not in df.columns:
+                df['expected_occupancy'] = 0
+        else:
+            print("No distinct price records found")
+            
+        return df
+    except Exception as e:
+        print(f"Error in get_distinct_prices_by_date_operator_time: {str(e)}")
+        return None
+
 
 def get_seat_wise_data(schedule_id=None, hours_before_departure=None, date_of_journey=None):
     """Get seat-wise data based on selected filters"""

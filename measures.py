@@ -17,9 +17,77 @@ def calculate_price_delta_percentage(actual_fare, model_price):
 def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Get KPI data for the dashboard"""
     try:
-        df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        print(f"\n\n===== DEBUG: get_kpi_data called with: =====")
+        print(f"schedule_id: {schedule_id}")
+        print(f"operator_id: {operator_id}")
+        print(f"seat_type: {seat_type}")
+        print(f"hours_before_departure: {hours_before_departure}")
+        print(f"date_of_journey: {date_of_journey}")
+        
+        # First try to get data using the direct SQL query
+        if schedule_id and operator_id and hours_before_departure is not None:
+            # Get departure_time for this schedule
+            from db_utils import execute_query
+            departure_time_query = """
+            SELECT DISTINCT departure_time 
+            FROM seat_prices_partitioned 
+            WHERE schedule_id = %s
+            LIMIT 1
+            """
+            departure_time_df = execute_query(departure_time_query, [schedule_id])
+            
+            if departure_time_df is not None and not departure_time_df.empty:
+                departure_time = departure_time_df['departure_time'].iloc[0]
+                print(f"Found departure_time: {departure_time} for schedule_id: {schedule_id}")
+                
+                # Now use our new query with the found departure_time
+                if date_of_journey:
+                    try:
+                        # First check if the seat_prices_with_dt_partitioned table exists
+                        table_check_query = """
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_name = 'seat_prices_with_dt_partitioned'
+                        )
+                        """
+                        table_exists_df = execute_query(table_check_query, [])
+                        table_exists = table_exists_df.iloc[0][0] if table_exists_df is not None and not table_exists_df.empty else False
+                        
+                        if table_exists:
+                            print("seat_prices_with_dt_partitioned table exists, proceeding with distinct prices query")
+                            from db_utils import get_distinct_prices_by_date_operator_time
+                            df = get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, departure_time)
+                            print(f"Using distinct prices query with date={date_of_journey}, operator={operator_id}, time={departure_time}")
+                            
+                            # If we got no data from the distinct prices query, fall back to regular query
+                            if df is None or df.empty:
+                                print("Distinct prices query returned no data, falling back to regular query")
+                                df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+                        else:
+                            print("seat_prices_with_dt_partitioned table does not exist, falling back to regular query")
+                            df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+                    except Exception as e:
+                        print(f"Error checking table or executing distinct prices query: {str(e)}")
+                        print("Falling back to regular query")
+                        df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+                else:
+                    print("No date_of_journey provided, falling back to regular query")
+                    df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+            else:
+                print(f"Could not find departure_time for schedule_id: {schedule_id}, falling back to regular query")
+                df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        else:
+            print("Missing required parameters for distinct prices query, falling back to regular query")
+            df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        
+        print(f"DataFrame returned: {df is not None}")
+        if df is not None:
+            print(f"DataFrame shape: {df.shape}")
+            print(f"DataFrame columns: {df.columns.tolist()}")
+            print(f"First row: {df.iloc[0].to_dict() if not df.empty else 'Empty DataFrame'}")
         
         if df is None or df.empty:
+            print("DataFrame is None or empty, returning zeros")
             return {
                 'avg_actual_fare': 0,
                 'avg_model_price': 0,
@@ -30,22 +98,48 @@ def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_befor
             }
         
         # Convert columns to numeric and datetime
-        df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
+        print("Converting columns to numeric")
+        
+        # Handle actual_fare column
+        if 'actual_fare' in df.columns:
+            df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
+            print(f"actual_fare values: {df['actual_fare'].tolist()}")
+        else:
+            print("WARNING: actual_fare column not found")
+            df['actual_fare'] = 0
         
         # Handle both price and final_price columns for different tables
         if 'price' in df.columns:
+            print("Found 'price' column in dataframe")
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             model_price_col = 'price'
+            print(f"price values: {df['price'].tolist()}")
         elif 'final_price' in df.columns:
+            print("Found 'final_price' column in dataframe")
             df['final_price'] = pd.to_numeric(df['final_price'], errors='coerce')
             model_price_col = 'final_price'
+            print(f"final_price values: {df['final_price'].tolist()}")
         else:
-            print("WARNING: Neither price nor final_price column found in dataframe")
-            model_price_col = None
+            print(f"WARNING: Neither price nor final_price column found in dataframe. Columns: {df.columns.tolist()}")
+            # If we have actual_fare but no model price, use actual_fare as model price
+            if 'actual_fare' in df.columns:
+                print("Using actual_fare as model price")
+                df['price'] = df['actual_fare']
+                model_price_col = 'price'
+            else:
+                model_price_col = None
         
         # Handle TimeAndDateStamp more carefully
-        if 'TimeAndDateStamp' in df.columns:
+        # Check for both uppercase and lowercase versions of the column
+        if 'timeanddatestamp' in df.columns:
             try:
+                print("Found lowercase timeanddatestamp column")
+                df['timeanddatestamp'] = pd.to_datetime(df['timeanddatestamp'], errors='coerce')
+            except Exception as e:
+                print(f"Error converting timeanddatestamp: {str(e)}")
+        elif 'TimeAndDateStamp' in df.columns:
+            try:
+                print("Found uppercase TimeAndDateStamp column")
                 df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], errors='coerce')
             except Exception as e:
                 print(f"Error converting TimeAndDateStamp: {str(e)}")
@@ -55,22 +149,34 @@ def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_befor
         df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce')
         df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce')
         
-        # Calculate KPIs
-        avg_actual_fare = df['actual_fare'].mean()
+        # Calculate average values
+        avg_actual_fare = df['actual_fare'].mean() if 'actual_fare' in df.columns else 0
         
         # Use the appropriate model price column
         if model_price_col and model_price_col in df.columns:
             avg_model_price = df[model_price_col].mean()
+            print(f"Calculated avg_model_price: {avg_model_price} from column {model_price_col}")
         else:
             avg_model_price = 0
             print(f"WARNING: Model price column not found in dataframe. Columns: {df.columns.tolist()}")
         
-        avg_delta = avg_actual_fare - avg_model_price
-        avg_delta_percentage = (avg_delta / avg_model_price * 100) if avg_model_price != 0 else 0
-        avg_occupancy = df['actual_occupancy'].mean()
-        avg_expected_occupancy = df['expected_occupancy'].mean()
+        avg_delta = calculate_price_delta(avg_actual_fare, avg_model_price)
+        avg_delta_percentage = calculate_price_delta_percentage(avg_actual_fare, avg_model_price)
         
-        return {
+        # Handle occupancy columns which might not be present in all queries
+        if 'actual_occupancy' in df.columns:
+            avg_occupancy = df['actual_occupancy'].mean()
+        else:
+            print("WARNING: actual_occupancy column not found, using 0")
+            avg_occupancy = 0
+            
+        if 'expected_occupancy' in df.columns:
+            avg_expected_occupancy = df['expected_occupancy'].mean()
+        else:
+            print("WARNING: expected_occupancy column not found, using 0")
+            avg_expected_occupancy = 0
+        
+        result = {
             'avg_actual_fare': round(avg_actual_fare, 2),
             'avg_model_price': round(avg_model_price, 2),
             'avg_delta': round(avg_delta, 2),
@@ -78,6 +184,8 @@ def get_kpi_data(schedule_id=None, operator_id=None, seat_type=None, hours_befor
             'avg_occupancy': round(avg_occupancy, 2),
             'avg_expected_occupancy': round(avg_expected_occupancy, 2)
         }
+        print(f"Returning KPI data: {result}")
+        return result
     except Exception as e:
         print(f"Error in get_kpi_data: {str(e)}")
         return {

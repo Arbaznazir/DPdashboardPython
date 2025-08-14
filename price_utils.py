@@ -83,7 +83,11 @@ def get_prices_by_schedule_and_hour(schedule_id, hours_before_departure):
         price_query = """
         SELECT 
             CAST("actual_fare" AS NUMERIC) as "actual_price",
-            CAST("final_price" AS NUMERIC) as "model_price"
+            CASE 
+                WHEN "price" IS NOT NULL THEN CAST("price" AS NUMERIC)
+                WHEN "final_price" IS NOT NULL THEN CAST("final_price" AS NUMERIC)
+                ELSE CAST("actual_fare" AS NUMERIC) -- Fallback to actual_fare if neither price nor final_price exists
+            END as "model_price"
         FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         AND "seat_type" = %(seat_type)s
