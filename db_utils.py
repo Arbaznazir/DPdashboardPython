@@ -271,114 +271,50 @@ def get_actual_price(schedule_id, seat_type, hours_before_departure):
     if not schedule_id or not seat_type or hours_before_departure is None:
         print("Missing required parameters for get_actual_price")
         return None
-        
-    # Ensure schedule_id is a string
+
+    # Ensure schedule_id is a string (tables store IDs as text)
     schedule_id = str(schedule_id)
-    
+
     try:
-        print(f"Getting actual price for schedule_id={schedule_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
-        
-        # For debugging, check if the seat type exists for this schedule
-        seat_check_query = """
-        SELECT COUNT(*) as count
-        FROM actual_price_sp
+        print(
+            f"Getting actual price (seat_prices_partitioned) for schedule_id={schedule_id}, "
+            f"seat_type={seat_type}, hours_before_departure={hours_before_departure}"
+        )
+
+        # Directly query the partitioned table, matching hours_before_departure with tolerance
+        query = """
+        SELECT
+            ("actual_fare")::numeric AS price
+        FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
-        AND "seat_type" = %(seat_type)s
-        """
-        
-        seat_check_params = {
-            'schedule_id': schedule_id,
-            'seat_type': seat_type
-        }
-        
-        seat_check_df = execute_query(seat_check_query, seat_check_params)
-        if seat_check_df is not None and not seat_check_df.empty:
-            seat_count = seat_check_df['count'].iloc[0]
-            print(f"Found {seat_count} records for schedule_id={schedule_id}, seat_type={seat_type} in actual_price_sp")
-            if seat_count == 0:
-                print(f"No records found for this schedule and seat type combination")
-                # Return a default value for testing
-                return 1000.0
-        
-        # First, get the snapshot time for the given hours_before_departure
-        snapshot_query = """
-        SELECT "TimeAndDateStamp" as "SnapshotDateTime"
-        FROM fnGetHoursBeforeDeparture
-        WHERE "schedule_id" = %(schedule_id)s AND "hours_before_departure" = %(hours_before_departure)s
+          AND "seat_type" = %(seat_type)s
+          AND ABS(("hours_before_departure")::float - %(hours_before_departure)s) < 0.01
         ORDER BY "TimeAndDateStamp" DESC
         LIMIT 1
         """
-        
-        snapshot_params = {
-            'schedule_id': schedule_id,
-            'hours_before_departure': hours_before_departure
-        }
-        
-        snapshot_df = execute_query(snapshot_query, snapshot_params)
-        
-        if snapshot_df is None or snapshot_df.empty:
-            print(f"No snapshot time found for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}")
-            # Return a default value for testing
-            return 1000.0
-        
-        snapshot_time = snapshot_df['SnapshotDateTime'].iloc[0]
-        print(f"Found snapshot_time={snapshot_time}")
-        
-        # Get the latest time from actual_price_sp
-        latest_time_query = """
-        SELECT MAX("TimeAndDateStamp") as "latest_time"
-        FROM actual_price_sp
-        WHERE "schedule_id" = %(schedule_id)s
-        AND "seat_type" = %(seat_type)s
-        AND "TimeAndDateStamp" <= %(snapshot_time)s
-        """
-        
-        latest_time_params = {
+
+        params = {
             'schedule_id': schedule_id,
             'seat_type': seat_type,
-            'snapshot_time': snapshot_time
+            'hours_before_departure': float(hours_before_departure),
         }
-        
-        latest_time_df = execute_query(latest_time_query, latest_time_params)
-        
-        if latest_time_df is None or latest_time_df.empty or latest_time_df['latest_time'].iloc[0] is None:
-            print(f"No latest time found for schedule_id={schedule_id}, seat_type={seat_type}, snapshot_time={snapshot_time}")
-            # Return a default value for testing
-            return 1000.0
-        
-        latest_time = latest_time_df['latest_time'].iloc[0]
-        print(f"Found latest_time={latest_time}")
-        
-        # Get the actual price
-        price_query = """
-        SELECT MAX("actual_fare") as "price"
-        FROM actual_price_sp
-        WHERE "schedule_id" = %(schedule_id)s
-        AND "seat_type" = %(seat_type)s
-        AND "TimeAndDateStamp" = %(latest_time)s
-        """
-        
-        price_params = {
-            'schedule_id': schedule_id,
-            'seat_type': seat_type,
-            'latest_time': latest_time
-        }
-        
-        price_df = execute_query(price_query, price_params)
-        
-        if price_df is None or price_df.empty or price_df['price'].iloc[0] is None:
-            print(f"No price found for schedule_id={schedule_id}, seat_type={seat_type}, latest_time={latest_time}")
-            # Return a default value for testing
-            return 1000.0
-        
-        price = price_df['price'].iloc[0]
+
+        df = execute_query(query, params)
+
+        if df is None or df.empty or df.get('price').isna().all():
+            print(
+                f"No actual price found for schedule_id={schedule_id}, seat_type={seat_type}, "
+                f"hours_before_departure={hours_before_departure}"
+            )
+            return None
+
+        price = float(df['price'].iloc[0])
         print(f"Found actual price={price}")
         return price
-        
+
     except Exception as e:
         print(f"Error getting actual price: {e}")
-        # Return a default value for testing
-        return 1000.0
+        return None
 
 
 def get_model_price(schedule_id, seat_type, hours_before_departure):
@@ -388,114 +324,49 @@ def get_model_price(schedule_id, seat_type, hours_before_departure):
     if not schedule_id or not seat_type or hours_before_departure is None:
         print("Missing required parameters for get_model_price")
         return None
-        
-    # Ensure schedule_id is a string
+
+    # Ensure schedule_id is a string (tables store IDs as text)
     schedule_id = str(schedule_id)
-    
+
     try:
-        print(f"Getting model price for schedule_id={schedule_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
-        
-        # For debugging, check if the seat type exists for this schedule
-        seat_check_query = """
-        SELECT COUNT(*) as count
-        FROM model_price_sp
+        print(
+            f"Getting model price (seat_prices_partitioned) for schedule_id={schedule_id}, "
+            f"seat_type={seat_type}, hours_before_departure={hours_before_departure}"
+        )
+
+        query = """
+        SELECT
+            COALESCE(("price")::numeric, ("actual_fare")::numeric) AS price
+        FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
-        AND "seat_type" = %(seat_type)s
-        """
-        
-        seat_check_params = {
-            'schedule_id': schedule_id,
-            'seat_type': seat_type
-        }
-        
-        seat_check_df = execute_query(seat_check_query, seat_check_params)
-        if seat_check_df is not None and not seat_check_df.empty:
-            seat_count = seat_check_df['count'].iloc[0]
-            print(f"Found {seat_count} records for schedule_id={schedule_id}, seat_type={seat_type} in model_price_sp")
-            if seat_count == 0:
-                print(f"No records found for this schedule and seat type combination")
-                # Return a default value for testing
-                return 800.0
-        
-        # First, get the snapshot time for the given hours_before_departure
-        snapshot_query = """
-        SELECT "TimeAndDateStamp" as "SnapshotDateTime"
-        FROM fnGetHoursBeforeDeparture
-        WHERE "schedule_id" = %(schedule_id)s AND "hours_before_departure" = %(hours_before_departure)s
+          AND "seat_type" = %(seat_type)s
+          AND ABS(("hours_before_departure")::float - %(hours_before_departure)s) < 0.01
         ORDER BY "TimeAndDateStamp" DESC
         LIMIT 1
         """
-        
-        snapshot_params = {
-            'schedule_id': schedule_id,
-            'hours_before_departure': hours_before_departure
-        }
-        
-        snapshot_df = execute_query(snapshot_query, snapshot_params)
-        
-        if snapshot_df is None or snapshot_df.empty:
-            print(f"No snapshot time found for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}")
-            # Return a default value for testing
-            return 800.0
-        
-        snapshot_time = snapshot_df['SnapshotDateTime'].iloc[0]
-        print(f"Found snapshot_time={snapshot_time}")
-        
-        # Get the latest time from model_price_sp
-        latest_time_query = """
-        SELECT MAX("TimeAndDateStamp") as "latest_time"
-        FROM model_price_sp
-        WHERE "schedule_id" = %(schedule_id)s
-        AND "seat_type" = %(seat_type)s
-        AND "TimeAndDateStamp" <= %(snapshot_time)s
-        """
-        
-        latest_time_params = {
+
+        params = {
             'schedule_id': schedule_id,
             'seat_type': seat_type,
-            'snapshot_time': snapshot_time
+            'hours_before_departure': float(hours_before_departure),
         }
-        
-        latest_time_df = execute_query(latest_time_query, latest_time_params)
-        
-        if latest_time_df is None or latest_time_df.empty or latest_time_df['latest_time'].iloc[0] is None:
-            print(f"No latest time found for schedule_id={schedule_id}, seat_type={seat_type}, snapshot_time={snapshot_time}")
-            # Return a default value for testing
-            return 800.0
-        
-        latest_time = latest_time_df['latest_time'].iloc[0]
-        print(f"Found latest_time={latest_time}")
-        
-        # Get the model price
-        price_query = """
-        SELECT MAX("price") as "price"
-        FROM model_price_sp
-        WHERE "schedule_id" = %(schedule_id)s
-        AND "seat_type" = %(seat_type)s
-        AND "TimeAndDateStamp" = %(latest_time)s
-        """
-        
-        price_params = {
-            'schedule_id': schedule_id,
-            'seat_type': seat_type,
-            'latest_time': latest_time
-        }
-        
-        price_df = execute_query(price_query, price_params)
-        
-        if price_df is None or price_df.empty or price_df['price'].iloc[0] is None:
-            print(f"No price found for schedule_id={schedule_id}, seat_type={seat_type}, latest_time={latest_time}")
-            # Return a default value for testing
-            return 800.0
-        
-        price = price_df['price'].iloc[0]
+
+        df = execute_query(query, params)
+
+        if df is None or df.empty or df.get('price').isna().all():
+            print(
+                f"No model price found for schedule_id={schedule_id}, seat_type={seat_type}, "
+                f"hours_before_departure={hours_before_departure}"
+            )
+            return None
+
+        price = float(df['price'].iloc[0])
         print(f"Found model price={price}")
         return price
-        
+
     except Exception as e:
         print(f"Error getting model price: {e}")
-        # Return a default value for testing
-        return 800.0
+        return None
 
 def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Get filtered data based on selected filters"""
@@ -523,18 +394,20 @@ def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_
             print(f"Added hours_before_departure filter: {hours_before_departure_float}")
         except (ValueError, TypeError) as e:
             print(f"Error converting hours_before_departure to float: {e}")
+
+    # If date_of_journey is specified, filter directly in SQL rather than merging later
+    if date_of_journey is not None:
+        where_clauses.append('"date_of_journey" = %(date_of_journey)s')
+        params['date_of_journey'] = date_of_journey
     
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     
     # Get the data from seat_prices_partitioned with all filters applied directly in SQL
     query = f"""
     SELECT 
-        sp.*,
-        "TimeAndDateStamp" AS timeanddatestamp
+        sp.*
     FROM seat_prices_partitioned sp
-    WHERE "schedule_id" = %(schedule_id)s
-      AND "operator_id" = %(operator_id)s
-      AND ABS("hours_before_departure"::float - %(hours_before_departure)s) < 0.01
+    WHERE {where_clause}
     ORDER BY "TimeAndDateStamp" DESC
     """
     
@@ -543,36 +416,12 @@ def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_
     # Debug output
     print(f"Query: {query}")
     print(f"Params: {params}")
+    print(f"Where clause: {where_clause}")
     
     # If df is empty after filtering, return None
     if df is None or df.empty:
         print("No data found for the selected filters")
         return None
-    
-    # If date_of_journey is specified, filter the data further
-    if df is not None and date_of_journey is not None:
-        # Get the date_of_journey data
-        doj_query = f"""
-        SELECT * FROM dateofjourney
-        WHERE "schedule_id" = %(schedule_id)s
-        AND "date_of_journey" = %(date_of_journey)s
-        """
-        
-        doj_params = {
-            'schedule_id': schedule_id,
-            'date_of_journey': date_of_journey
-        }
-        
-        doj_df = execute_query(doj_query, doj_params)
-        
-        if doj_df is not None and not doj_df.empty:
-            # Merge the data based on schedule_id and TimeAndDateStamp
-            df = pd.merge(
-                df,
-                doj_df,
-                on=['schedule_id', 'TimeAndDateStamp'],
-                how='inner'
-            )
     
     return df
 
@@ -634,11 +483,7 @@ def get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, depa
                 seat_type,
                 hours_before_departure,
                 actual_fare,
-                CASE 
-                    WHEN price IS NOT NULL THEN price
-                    WHEN final_price IS NOT NULL THEN final_price
-                    ELSE actual_fare
-                END AS price,
+                COALESCE(price, actual_fare) AS price,
                 COALESCE(actual_occupancy, 0) AS actual_occupancy,
                 COALESCE(expected_occupancy, 0) AS expected_occupancy,
                 "TimeAndDateStamp" as timeanddatestamp
@@ -658,11 +503,10 @@ def get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, depa
                 schedule_id,
                 seat_type,
                 hours_before_departure,
-                actual_fare,
-                actual_fare AS price, -- For non-dynamic pricing operator, use actual_fare as model price
-                0 AS actual_occupancy, -- Default values for occupancy since they might not be in this table
-                0 AS expected_occupancy,
-                "TimeAndDateStamp" as timeanddatestamp -- Use lowercase for consistency
+                actual_fare AS price, -- For non-dynamic pricing operator, use actual_fare
+                "TimeAndDateStamp",
+                COALESCE(actual_occupancy, 0) AS actual_occupancy,
+                COALESCE(expected_occupancy, 0) AS expected_occupancy
             FROM seat_prices_with_dt_partitioned
             WHERE date_of_journey = %s
               AND operator_id = %s
@@ -916,13 +760,16 @@ def get_occupancy_by_seat_type(schedule_id, seat_type, hours_before_departure=No
             'expected_occupancy': 0
         }
     
+    # Convert schedule_id to string to ensure consistency (DB stores as text)
+    schedule_id = str(schedule_id)
+
     # Build query to get occupancy data for specific seat type
     query = """
     SELECT 
         "actual_occupancy"::NUMERIC(10,2) as "actual_occupancy",
         "expected_occupancy"::NUMERIC(10,2) as "expected_occupancy"
     FROM 
-        seat_prices_raw
+        seat_prices_partitioned
     WHERE 
         "schedule_id" = %(schedule_id)s
         AND "seat_type" = %(seat_type)s
@@ -931,8 +778,8 @@ def get_occupancy_by_seat_type(schedule_id, seat_type, hours_before_departure=No
     # Add hours_before_departure filter if provided
     params = {'schedule_id': schedule_id, 'seat_type': seat_type}
     if hours_before_departure is not None:
-        query += "AND \"hours_before_departure\" = %(hours_before_departure)s "
-        params['hours_before_departure'] = hours_before_departure
+        query += "AND ABS((\"hours_before_departure\")::float - %(hours_before_departure)s) < 0.01 "
+        params['hours_before_departure'] = float(hours_before_departure)
     
     # Get the latest entry for this combination
     query += "ORDER BY \"TimeAndDateStamp\" DESC LIMIT 1"
@@ -975,49 +822,52 @@ def get_demand_index(schedule_id, hours_before_departure=None, seat_type=None):
         schedule_id = str(schedule_id)
         print(f"DEBUG: Getting demand_index for schedule_id={schedule_id}, hours_before_departure={hours_before_departure}, seat_type={seat_type}")
         
-        # Direct query for demand_index column - based on the image, we know it exists
-        query = """
-        SELECT "demand_index", "seat_type"
-        FROM seat_prices_partitioned
-        WHERE "schedule_id" = %(schedule_id)s
-        """
-        
         params = {'schedule_id': schedule_id}
         
-        # Add seat_type filter if provided
-        if seat_type:
-            query += "AND \"seat_type\" = %(seat_type)s "
-            params['seat_type'] = seat_type
-        
-        # If hours_before_departure is specified, join with fnGetHoursBeforeDeparture
+        # Build query variants based on filters
         if hours_before_departure is not None:
-            query = """
-            SELECT spr."demand_index", spr."seat_type"
-            FROM seat_prices_partitioned spr
-            JOIN fnGetHoursBeforeDeparture hbd ON spr."schedule_id" = hbd."schedule_id" 
-                AND spr."TimeAndDateStamp" = hbd."TimeAndDateStamp"
-            WHERE spr."schedule_id" = %(schedule_id)s
-            AND hbd."hours_before_departure" = %(hours_before_departure)s
-            """
-            
-            # Add seat_type filter if provided
+            params['hours_before_departure'] = float(hours_before_departure)
             if seat_type:
-                query += "AND spr.\"seat_type\" = %(seat_type)s "
-                
-            query += """
-            ORDER BY hbd."TimeAndDateStamp" DESC
-            """
-            
-            params['hours_before_departure'] = hours_before_departure
+                params['seat_type'] = seat_type
+                query = """
+                SELECT ("demand_index") AS demand_index, "seat_type"
+                FROM seat_prices_partitioned
+                WHERE "schedule_id" = %(schedule_id)s
+                  AND "seat_type" = %(seat_type)s
+                  AND ABS(("hours_before_departure")::float - %(hours_before_departure)s) < 0.01
+                ORDER BY "TimeAndDateStamp" DESC
+                LIMIT 1
+                """
+            else:
+                query = """
+                SELECT DISTINCT ON ("seat_type")
+                    "seat_type",
+                    ("demand_index") AS demand_index
+                FROM seat_prices_partitioned
+                WHERE "schedule_id" = %(schedule_id)s
+                  AND ABS(("hours_before_departure")::float - %(hours_before_departure)s) < 0.01
+                ORDER BY "seat_type", "TimeAndDateStamp" DESC
+                """
         else:
-            # If no hours_before_departure, get the most recent demand_index
-            query += """
-            ORDER BY "TimeAndDateStamp" DESC
-            """
-        
-        # If seat_type is provided, limit to 1 result
-        if seat_type:
-            query += "LIMIT 1"
+            if seat_type:
+                params['seat_type'] = seat_type
+                query = """
+                SELECT ("demand_index") AS demand_index, "seat_type"
+                FROM seat_prices_partitioned
+                WHERE "schedule_id" = %(schedule_id)s
+                  AND "seat_type" = %(seat_type)s
+                ORDER BY "TimeAndDateStamp" DESC
+                LIMIT 1
+                """
+            else:
+                query = """
+                SELECT DISTINCT ON ("seat_type")
+                    "seat_type",
+                    ("demand_index") AS demand_index
+                FROM seat_prices_partitioned
+                WHERE "schedule_id" = %(schedule_id)s
+                ORDER BY "seat_type", "TimeAndDateStamp" DESC
+                """
         
         print(f"DEBUG: Executing demand_index query: {query}")
         df = execute_query(query, params)

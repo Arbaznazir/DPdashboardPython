@@ -96,7 +96,85 @@ def create_kpi_card(title, value, subtitle=None, color="primary", icon=None, tex
 
 def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_before_departure=None, date_of_journey=None):
     """Create a row of KPI cards that stack on mobile"""
-    kpi_data = get_kpi_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+    # Get the data first, then pass to get_kpi_data
+    from db_utils import get_filtered_data, get_distinct_prices_by_date_operator_time, execute_query
+    
+    # Get the data using the same logic as before
+    df = None
+    model_price_col = None
+    
+    try:
+        # First try to get data using the direct SQL query
+        if schedule_id and operator_id and hours_before_departure is not None:
+            # Get departure_time for this schedule
+            departure_time_query = """
+            SELECT DISTINCT departure_time 
+            FROM seat_prices_partitioned 
+            WHERE schedule_id = %s
+            LIMIT 1
+            """
+            departure_time_df = execute_query(departure_time_query, [schedule_id])
+            
+            if departure_time_df is not None and not departure_time_df.empty:
+                departure_time = departure_time_df['departure_time'].iloc[0]
+                
+                # Now use our new query with the found departure_time
+                if date_of_journey:
+                    try:
+                        # First check if the seat_prices_with_dt_partitioned table exists
+                        table_check_query = """
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_name = 'seat_prices_with_dt_partitioned'
+                        )
+                        """
+                        table_exists_df = execute_query(table_check_query, [])
+                        table_exists = table_exists_df.iloc[0][0] if table_exists_df is not None and not table_exists_df.empty else False
+                        
+                        if table_exists:
+                            df = get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, departure_time)
+                            
+                            # If we got no data from the distinct prices query, fall back to regular query
+                            if df is None or df.empty:
+                                df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+                        else:
+                            df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+                    except Exception as e:
+                        df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+                else:
+                    df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+            else:
+                df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        else:
+            df = get_filtered_data(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
+        
+        # Determine model price column
+        if df is not None and not df.empty:
+            if 'price' in df.columns:
+                model_price_col = 'price'
+            elif 'final_price' in df.columns:
+                model_price_col = 'final_price'
+            else:
+                model_price_col = 'actual_fare'  # fallback
+        
+        # Get KPI data using the new function signature
+        if df is not None and not df.empty and model_price_col:
+            kpi_data = get_kpi_data(df, model_price_col)
+        else:
+            kpi_data = None
+            
+    except Exception as e:
+        print(f"Error getting KPI data: {e}")
+        kpi_data = None
+    
+    # Handle case where kpi_data is None
+    if kpi_data is None:
+        kpi_data = {
+            'avg_actual_fare': 0,
+            'avg_model_price': 0,
+            'avg_delta': 0,
+            'avg_delta_pct': 0
+        }
     
     # We'll keep these for reference but they won't be the main KPIs
     avg_actual_price_card = create_kpi_card(
@@ -115,20 +193,15 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
         "calculator"
     )
     
+    # Handle both key formats (avg_delta_pct or avg_delta_percentage)
+    delta_pct = kpi_data.get('avg_delta_pct', kpi_data.get('avg_delta_percentage', 0))
+    
     delta_card = create_kpi_card(
         "Price Delta",
-        f"${kpi_data['avg_delta']} ({kpi_data['avg_delta_percentage']}%)",
+        f"${kpi_data['avg_delta']:.2f} ({delta_pct:.2f}%)",
         "Difference between actual and model",
         "success" if kpi_data['avg_delta'] > 0 else "warning",
         "exchange-alt"
-    )
-    
-    occupancy_card = create_kpi_card(
-        "Occupancy",
-        f"{kpi_data['avg_occupancy']}%",
-        f"Expected: {kpi_data['avg_expected_occupancy']}%",
-        "primary",
-        "users"
     )
     
     # Create a list to hold all the price KPI cards

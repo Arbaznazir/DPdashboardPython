@@ -83,15 +83,12 @@ def get_prices_by_schedule_and_hour(schedule_id, hours_before_departure):
         price_query = """
         SELECT 
             CAST("actual_fare" AS NUMERIC) as "actual_price",
-            CASE 
-                WHEN "price" IS NOT NULL THEN CAST("price" AS NUMERIC)
-                WHEN "final_price" IS NOT NULL THEN CAST("final_price" AS NUMERIC)
-                ELSE CAST("actual_fare" AS NUMERIC) -- Fallback to actual_fare if neither price nor final_price exists
-            END as "model_price"
+            CAST("price" AS NUMERIC) as "model_price" -- Use price column for model price in seat_prices_partitioned
         FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         AND "seat_type" = %(seat_type)s
-        AND "TimeAndDateStamp" = %(snapshot_time)s
+        AND (%(snapshot_time)s IS NULL OR "TimeAndDateStamp" = %(snapshot_time)s)
+        ORDER BY "TimeAndDateStamp" DESC
         LIMIT 1
         """
         
@@ -110,6 +107,19 @@ def get_prices_by_schedule_and_hour(schedule_id, hours_before_departure):
         if price_df is not None and not price_df.empty:
             actual_price = price_df['actual_price'].iloc[0]
             model_price = price_df['model_price'].iloc[0]
+            
+            # Ensure prices are converted to float to avoid string arithmetic errors
+            try:
+                actual_price = float(actual_price) if actual_price is not None else None
+            except (ValueError, TypeError):
+                print(f"Warning: Could not convert actual_price to float: {actual_price}")
+                actual_price = None
+                
+            try:
+                model_price = float(model_price) if model_price is not None else None
+            except (ValueError, TypeError):
+                print(f"Warning: Could not convert model_price to float: {model_price}")
+                model_price = None
             
             # Store in result dictionary
             result[seat_type] = {
@@ -171,7 +181,8 @@ def get_total_seat_prices(schedule_id=None, hours_before_departure=None, date_of
     
     # Calculate totals
     total_actual_price = df['actual_fare'].sum()
-    total_model_price = df['final_price'].sum()
+    # Use price column for model price in seat_prices_partitioned
+    total_model_price = df['price'].sum() if 'price' in df.columns else df.get('final_price', pd.Series([0])).sum()
     price_difference = total_actual_price - total_model_price
     seat_count = len(df)
     
@@ -254,7 +265,7 @@ def get_monthly_delta(month, year):
         )
         SELECT 
             SUM(CAST(sp.actual_fare AS NUMERIC)) as total_actual_price,
-            SUM(CAST(sp.final_price AS NUMERIC)) as total_model_price
+            SUM(CAST(sp.price AS NUMERIC)) as total_model_price
         FROM seat_prices_partitioned sp
         JOIN latest_snapshots ls ON 
             sp.schedule_id = ls.schedule_id AND 
@@ -287,7 +298,7 @@ def get_monthly_delta(month, year):
         )
         SELECT 
             SUM(CAST(swp.actual_fare AS NUMERIC)) as total_actual_price,
-            SUM(CAST(swp.final_price AS NUMERIC)) as total_model_price
+            SUM(CAST(swp.actual_fare AS NUMERIC)) as total_model_price -- Using actual_fare for seat_wise_prices_partitioned as it doesn't have price/final_price
         FROM seat_wise_prices_partitioned swp
         JOIN latest_snapshots ls ON 
             swp.schedule_id = ls.schedule_id AND 
