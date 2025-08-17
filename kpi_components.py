@@ -70,7 +70,14 @@ def update_price_kpis(schedule_id, seat_type, hours_before_departure):
         
         # Calculate price difference if both prices are available
         if actual_price is not None and model_price is not None:
-            price_diff = actual_price - model_price
+            # Ensure both are numeric before subtraction
+            try:
+                actual_price = float(actual_price) if isinstance(actual_price, (str, int)) else actual_price
+                model_price = float(model_price) if isinstance(model_price, (str, int)) else model_price
+                price_diff = actual_price - model_price
+            except (ValueError, TypeError) as e:
+                print(f"Error converting prices to float in kpi_components: actual={actual_price}, model={model_price}, error={e}")
+                price_diff = 0
             
             # Format the values for display
             actual_price_display = f"${actual_price:,.2f}"

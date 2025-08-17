@@ -528,11 +528,14 @@ def update_dashboard(schedule_id, hours_before_departure, date_of_journey, opera
     # Only show KPIs when hours_before_departure is selected
     if hours_before_departure is not None:
         try:
-            # Get KPI row
             print(f"Creating KPI row with: schedule_id={schedule_id}, operator_id={operator_id}, seat_type={seat_type}, hours_before_departure={hours_before_departure}")
             kpi_row = create_kpi_row(schedule_id, operator_id, seat_type, hours_before_departure, date_of_journey)
         except Exception as e:
+            import traceback
             print(f"Error creating KPI row: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            print("Full traceback:")
+            traceback.print_exc()
             kpi_row = html.Div([html.P(f"Error loading KPIs: {str(e)}")])
     else:
         # Show a message prompting to select an hour before departure

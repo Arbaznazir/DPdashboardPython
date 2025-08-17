@@ -80,10 +80,11 @@ def get_prices_by_schedule_and_hour(schedule_id, hours_before_departure):
     # For each seat type, get actual and model prices from seat_prices_partitioned
     for seat_type in seat_types:
         # Get price data directly from seat_prices_partitioned
+        # Don't cast in SQL since columns are TEXT and may contain non-numeric values
         price_query = """
         SELECT 
-            CAST("actual_fare" AS NUMERIC) as "actual_price",
-            CAST("price" AS NUMERIC) as "model_price" -- Use price column for model price in seat_prices_partitioned
+            "actual_fare" as "actual_price",
+            "price" as "model_price" -- Use price column for model price in seat_prices_partitioned
         FROM seat_prices_partitioned
         WHERE "schedule_id" = %(schedule_id)s
         AND "seat_type" = %(seat_type)s
@@ -108,17 +109,34 @@ def get_prices_by_schedule_and_hour(schedule_id, hours_before_departure):
             actual_price = price_df['actual_price'].iloc[0]
             model_price = price_df['model_price'].iloc[0]
             
-            # Ensure prices are converted to float to avoid string arithmetic errors
+            # Clean and convert prices since they're stored as TEXT
+            # Handle empty strings, None, and non-numeric values
             try:
-                actual_price = float(actual_price) if actual_price is not None else None
-            except (ValueError, TypeError):
-                print(f"Warning: Could not convert actual_price to float: {actual_price}")
+                # Clean actual_price
+                if actual_price is None or actual_price == '' or actual_price == 'None':
+                    actual_price = None
+                else:
+                    actual_price = str(actual_price).strip()
+                    if actual_price:
+                        actual_price = float(actual_price)
+                    else:
+                        actual_price = None
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Could not convert actual_price to float: {actual_price}, error: {e}")
                 actual_price = None
                 
             try:
-                model_price = float(model_price) if model_price is not None else None
-            except (ValueError, TypeError):
-                print(f"Warning: Could not convert model_price to float: {model_price}")
+                # Clean model_price
+                if model_price is None or model_price == '' or model_price == 'None':
+                    model_price = None
+                else:
+                    model_price = str(model_price).strip()
+                    if model_price:
+                        model_price = float(model_price)
+                    else:
+                        model_price = None
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Could not convert model_price to float: {model_price}, error: {e}")
                 model_price = None
             
             # Store in result dictionary
@@ -179,10 +197,22 @@ def get_total_seat_prices(schedule_id=None, hours_before_departure=None, date_of
             'seat_count': 0
         }
     
-    # Calculate totals
-    total_actual_price = df['actual_fare'].sum()
+    # Convert TEXT columns to numeric before calculating totals
+    # Handle empty strings and None values
+    df['actual_fare'] = df['actual_fare'].replace(['', None, 'None'], '0')
+    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce').fillna(0)
+    
+    if 'price' in df.columns:
+        df['price'] = df['price'].replace(['', None, 'None'], '0')
+        df['price'] = pd.to_numeric(df['price'], errors='coerce').fillna(0)
+    elif 'final_price' in df.columns:
+        df['final_price'] = df['final_price'].replace(['', None, 'None'], '0')
+        df['final_price'] = pd.to_numeric(df['final_price'], errors='coerce').fillna(0)
+    
+    # Calculate totals (now guaranteed to be numeric)
+    total_actual_price = float(df['actual_fare'].sum())
     # Use price column for model price in seat_prices_partitioned
-    total_model_price = df['price'].sum() if 'price' in df.columns else df.get('final_price', pd.Series([0])).sum()
+    total_model_price = float(df['price'].sum()) if 'price' in df.columns else float(df.get('final_price', pd.Series([0])).sum())
     price_difference = total_actual_price - total_model_price
     seat_count = len(df)
     

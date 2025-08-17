@@ -516,13 +516,27 @@ def create_kpi_row(schedule_id=None, operator_id=None, seat_type=None, hours_bef
             # rather than using the pre-calculated difference which might have the wrong sign
             
             # Format total price delta as absolute value (always positive)
-            price_diff_abs = abs(float(total_prices['total_actual_price']) - float(total_prices['total_model_price']))
-            total_price_diff_abs = f"${price_diff_abs:,.2f}"
-            
-            # Determine color based on business logic:
-            # Green when model > actual (good for business)
-            # Red when actual > model (bad for business)
-            price_diff_color = "success" if float(total_prices['total_model_price']) > float(total_prices['total_actual_price']) else "danger"
+            # Check if both values are valid before doing arithmetic
+            if total_prices['total_actual_price'] is not None and total_prices['total_model_price'] is not None:
+                try:
+                    actual_val = float(total_prices['total_actual_price'])
+                    model_val = float(total_prices['total_model_price'])
+                    price_diff_abs = abs(actual_val - model_val)
+                    total_price_diff_abs = f"${price_diff_abs:,.2f}"
+                    
+                    # Determine color based on business logic:
+                    # Green when model > actual (good for business)
+                    # Red when actual > model (bad for business)
+                    price_diff_color = "success" if model_val > actual_val else "danger"
+                except (ValueError, TypeError) as e:
+                    print(f"Error calculating total price difference: {e}")
+                    print(f"total_actual_price: {total_prices['total_actual_price']}, type: {type(total_prices['total_actual_price'])}")
+                    print(f"total_model_price: {total_prices['total_model_price']}, type: {type(total_prices['total_model_price'])}")
+                    total_price_diff_abs = "N/A"
+                    price_diff_color = "secondary"
+            else:
+                total_price_diff_abs = "N/A"
+                price_diff_color = "secondary"
             
             total_price_diff_card = create_kpi_card(
                 "Total Price Delta",

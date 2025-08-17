@@ -42,8 +42,10 @@ def get_kpi_data(df, model_price_col=None):
         
         # Handle actual_fare column
         if 'actual_fare' in df.columns:
-            df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
-            print(f"actual_fare values: {df['actual_fare'].tolist()}")
+            # Convert TEXT column to numeric, handling empty strings and None values
+            df['actual_fare'] = df['actual_fare'].replace(['', None], '0')
+            df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce').fillna(0)
+            print(f"actual_fare values (after conversion): {df['actual_fare'].tolist()}")
         else:
             print("WARNING: actual_fare column not found")
             df['actual_fare'] = 0
@@ -69,8 +71,10 @@ def get_kpi_data(df, model_price_col=None):
         
         # Ensure the model_price_col exists and convert to numeric
         if model_price_col and model_price_col in df.columns:
-            df[model_price_col] = pd.to_numeric(df[model_price_col], errors='coerce')
-            print(f"{model_price_col} values: {df[model_price_col].tolist()}")
+            # Convert TEXT column to numeric, handling empty strings and None values
+            df[model_price_col] = df[model_price_col].replace(['', None], '0')
+            df[model_price_col] = pd.to_numeric(df[model_price_col], errors='coerce').fillna(0)
+            print(f"{model_price_col} values (after conversion): {df[model_price_col].tolist()}")
         else:
             print(f"WARNING: Model price column '{model_price_col}' not found in dataframe. Columns: {df.columns.tolist()}")
             # Create a fallback if needed
@@ -100,32 +104,52 @@ def get_kpi_data(df, model_price_col=None):
         
         # Handle occupancy columns
         if 'actual_occupancy' in df.columns:
-            df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce')
+            # Convert TEXT column to numeric, handling empty strings and None values
+            df['actual_occupancy'] = df['actual_occupancy'].replace(['', None], '0')
+            df['actual_occupancy'] = pd.to_numeric(df['actual_occupancy'], errors='coerce').fillna(0)
         else:
             print("WARNING: actual_occupancy column not found")
             df['actual_occupancy'] = 0
             
         if 'expected_occupancy' in df.columns:
-            df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce')
+            # Convert TEXT column to numeric, handling empty strings and None values
+            df['expected_occupancy'] = df['expected_occupancy'].replace(['', None], '0')
+            df['expected_occupancy'] = pd.to_numeric(df['expected_occupancy'], errors='coerce').fillna(0)
         else:
             print("WARNING: expected_occupancy column not found")
             df['expected_occupancy'] = 0
         
         # Calculate KPIs
         print("Calculating KPIs")
-        # Convert price columns to numeric to prevent string operation errors
+        # Ensure numeric types before calculating means
+        # Already converted above, but ensure they are numeric for safety
         df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce').fillna(0)
         
         if model_price_col and model_price_col in df.columns:
             df[model_price_col] = pd.to_numeric(df[model_price_col], errors='coerce').fillna(0)
-            avg_model_price = df[model_price_col].mean()
+            # Calculate mean, ensuring it returns a float
+            avg_model_price = float(df[model_price_col].mean()) if len(df[model_price_col]) > 0 else 0.0
         else:
-            avg_model_price = 0
+            avg_model_price = 0.0
             
-        avg_actual_fare = df['actual_fare'].mean()
+        # Calculate mean, ensuring it returns a float
+        avg_actual_fare = float(df['actual_fare'].mean()) if len(df['actual_fare']) > 0 else 0.0
         
-        # Calculate delta and delta percentage
-        avg_delta = float(avg_actual_fare) - float(avg_model_price)
+        # Calculate delta and delta percentage (values are already float)
+        print(f"DEBUG: Before delta calculation - avg_actual_fare type: {type(avg_actual_fare)}, value: {avg_actual_fare}")
+        print(f"DEBUG: Before delta calculation - avg_model_price type: {type(avg_model_price)}, value: {avg_model_price}")
+        
+        # Ensure both are numeric before subtraction
+        try:
+            avg_actual_fare = float(avg_actual_fare) if avg_actual_fare is not None else 0.0
+            avg_model_price = float(avg_model_price) if avg_model_price is not None else 0.0
+        except (ValueError, TypeError) as e:
+            print(f"ERROR: Failed to convert to float - avg_actual_fare: {avg_actual_fare}, avg_model_price: {avg_model_price}")
+            print(f"Error details: {e}")
+            avg_actual_fare = 0.0
+            avg_model_price = 0.0
+        
+        avg_delta = avg_actual_fare - avg_model_price
         
         # Avoid division by zero
         if avg_model_price != 0:
@@ -133,8 +157,9 @@ def get_kpi_data(df, model_price_col=None):
         else:
             avg_delta_pct = 0
             
-        avg_occupancy = df['actual_occupancy'].mean()
-        avg_expected_occupancy = df['expected_occupancy'].mean()
+        # Calculate occupancy means, ensuring they return floats
+        avg_occupancy = float(df['actual_occupancy'].mean()) if len(df['actual_occupancy']) > 0 else 0.0
+        avg_expected_occupancy = float(df['expected_occupancy'].mean()) if len(df['expected_occupancy']) > 0 else 0.0
         
         print(f"KPI Calculation Results:")
         print(f"avg_actual_fare: {avg_actual_fare}")
@@ -171,9 +196,15 @@ def get_price_trend_data(schedule_id=None, operator_id=None, seat_type=None, hou
     if df is None or df.empty:
         return pd.DataFrame()
     
-    # Convert columns to numeric and datetime
-    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
-    df['price'] = pd.to_numeric(df['price'], errors='coerce')
+    # Convert columns to numeric and datetime (handle TEXT columns from partitioned tables)
+    df['actual_fare'] = df['actual_fare'].replace(['', None], '0')
+    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce').fillna(0)
+    
+    if 'price' in df.columns:
+        df['price'] = df['price'].replace(['', None], '0')
+        df['price'] = pd.to_numeric(df['price'], errors='coerce').fillna(0)
+    else:
+        df['price'] = df['actual_fare']
     # Specify format explicitly to avoid warnings
     df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
     
@@ -192,9 +223,15 @@ def get_price_delta_data(schedule_id=None, operator_id=None, seat_type=None, hou
     if df is None or df.empty:
         return pd.DataFrame()
     
-    # Convert columns to numeric and datetime
-    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce')
-    df['price'] = pd.to_numeric(df['price'], errors='coerce')
+    # Convert columns to numeric and datetime (handle TEXT columns from partitioned tables)
+    df['actual_fare'] = df['actual_fare'].replace(['', None], '0')
+    df['actual_fare'] = pd.to_numeric(df['actual_fare'], errors='coerce').fillna(0)
+    
+    if 'price' in df.columns:
+        df['price'] = df['price'].replace(['', None], '0')
+        df['price'] = pd.to_numeric(df['price'], errors='coerce').fillna(0)
+    else:
+        df['price'] = df['actual_fare']
     # Specify format explicitly to avoid warnings
     df['TimeAndDateStamp'] = pd.to_datetime(df['TimeAndDateStamp'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
     

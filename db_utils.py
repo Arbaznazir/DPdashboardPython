@@ -388,12 +388,24 @@ def get_filtered_data(schedule_id=None, operator_id=None, seat_type=None, hours_
     # If hours_before_departure is specified, add it to the WHERE clause directly
     if hours_before_departure is not None:
         try:
-            hours_before_departure_float = float(hours_before_departure)
-            where_clauses.append('ABS("hours_before_departure"::float - %(hours_before_departure)s) < 0.01')
-            params['hours_before_departure'] = hours_before_departure_float
-            print(f"Added hours_before_departure filter: {hours_before_departure_float}")
+            hours_before_departure_str = str(hours_before_departure)
+            # Since hours_before_departure is stored as TEXT, do a direct string comparison
+            # or try to cast both sides safely
+            where_clauses.append("""
+                (CASE 
+                    WHEN "hours_before_departure" ~ '^[0-9]+(\.[0-9]+)?$' 
+                    THEN ABS("hours_before_departure"::float - %(hours_before_departure)s) < 0.01
+                    ELSE "hours_before_departure" = %(hours_before_departure_str)s
+                END)
+            """)
+            params['hours_before_departure'] = float(hours_before_departure)
+            params['hours_before_departure_str'] = hours_before_departure_str
+            print(f"Added hours_before_departure filter: {hours_before_departure}")
         except (ValueError, TypeError) as e:
-            print(f"Error converting hours_before_departure to float: {e}")
+            print(f"Error converting hours_before_departure: {e}")
+            # Fallback to string comparison
+            where_clauses.append('"hours_before_departure" = %(hours_before_departure)s')
+            params['hours_before_departure'] = str(hours_before_departure)
 
     # If date_of_journey is specified, filter directly in SQL rather than merging later
     if date_of_journey is not None:
@@ -477,15 +489,16 @@ def get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, depa
         if not table_exists:
             print("WARNING: seat_prices_with_dt_partitioned table does not exist")
             # Try to use seat_prices_partitioned as a fallback
+            # Don't use COALESCE with numeric values on TEXT columns
             fallback_query = """
             SELECT DISTINCT ON (schedule_id, seat_type, hours_before_departure)
                 schedule_id,
                 seat_type,
                 hours_before_departure,
                 actual_fare,
-                COALESCE(price, actual_fare) AS price,
-                COALESCE(actual_occupancy, 0) AS actual_occupancy,
-                COALESCE(expected_occupancy, 0) AS expected_occupancy,
+                CASE WHEN price IS NOT NULL AND price != '' THEN price ELSE actual_fare END AS price,
+                CASE WHEN actual_occupancy IS NOT NULL AND actual_occupancy != '' THEN actual_occupancy ELSE '0' END AS actual_occupancy,
+                CASE WHEN expected_occupancy IS NOT NULL AND expected_occupancy != '' THEN expected_occupancy ELSE '0' END AS expected_occupancy,
                 "TimeAndDateStamp" as timeanddatestamp
             FROM seat_prices_partitioned
             WHERE date_of_journey = %s
@@ -498,15 +511,17 @@ def get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, depa
             df = execute_query(fallback_query, params)
         else:
             # Original query on seat_prices_with_dt_partitioned
+            # Don't use COALESCE with numeric values on TEXT columns
             query = """
             SELECT DISTINCT ON (schedule_id, seat_type, hours_before_departure)
                 schedule_id,
                 seat_type,
                 hours_before_departure,
+                actual_fare,
                 actual_fare AS price, -- For non-dynamic pricing operator, use actual_fare
                 "TimeAndDateStamp",
-                COALESCE(actual_occupancy, 0) AS actual_occupancy,
-                COALESCE(expected_occupancy, 0) AS expected_occupancy
+                CASE WHEN actual_occupancy IS NOT NULL AND actual_occupancy != '' THEN actual_occupancy ELSE '0' END AS actual_occupancy,
+                CASE WHEN expected_occupancy IS NOT NULL AND expected_occupancy != '' THEN expected_occupancy ELSE '0' END AS expected_occupancy
             FROM seat_prices_with_dt_partitioned
             WHERE date_of_journey = %s
               AND operator_id = %s
@@ -521,15 +536,15 @@ def get_distinct_prices_by_date_operator_time(date_of_journey, operator_id, depa
         
         if df is not None and not df.empty:
             print(f"Retrieved {len(df)} distinct price records")
-            # Ensure all required columns exist
+            # Ensure all required columns exist - use string defaults for TEXT columns
             if 'actual_fare' not in df.columns:
-                df['actual_fare'] = 0
+                df['actual_fare'] = '0'  # String default for TEXT column
             if 'price' not in df.columns:
-                df['price'] = df['actual_fare']
+                df['price'] = df['actual_fare'].copy() if 'actual_fare' in df.columns else '0'
             if 'actual_occupancy' not in df.columns:
-                df['actual_occupancy'] = 0
+                df['actual_occupancy'] = '0'  # String default for TEXT column
             if 'expected_occupancy' not in df.columns:
-                df['expected_occupancy'] = 0
+                df['expected_occupancy'] = '0'  # String default for TEXT column
         else:
             print("No distinct price records found")
             
